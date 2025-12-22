@@ -117,11 +117,11 @@ $categorias = $conexao->query("SELECT c.*,
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gerenciar Categorias</title>
-<link rel="stylesheet" href="css/admin.css">
-<script src="logout_auto.js"></script>
-<script src="js/darkmode2.js"></script>
-<script src="js/sidebar.js"></script>
-<script src="js/dropdown2.js"></script>
+<link rel="stylesheet" href="../css/admin.css">
+<script src="../logout_auto.js"></script>
+<script src="../js/darkmode2.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/dropdown2.js"></script>
 
 <style>
 .categoria-card { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; 
@@ -179,14 +179,14 @@ $categorias = $conexao->query("SELECT c.*,
         </div>
         <div class="usuario-menu" id="menuPerfil">
             <a href="alterar_senha2.php">
-                <img class="icone" src="icones/cadeado1.png" alt="Alterar"> Alterar Senha
+                <img class="icone" src="../icones/cadeado1.png" alt="Alterar"> Alterar Senha
             </a>
             <a href="logout.php">
-                <img class="iconelogout" src="icones/logout1.png" alt="Logout"> Sair
+                <img class="iconelogout" src="../icones/logout1.png" alt="Logout"> Sair
             </a>
         </div>
     </div>
-    <img class="dark-toggle" id="darkToggle" src="icones/lua.png" alt="Modo Escuro">
+    <img class="dark-toggle" id="darkToggle" src="../icones/lua.png" alt="Modo Escuro">
   </div>
 </sidebar>
 

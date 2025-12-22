@@ -1,8 +1,10 @@
 <?php
-
+//dashboard.php
 include "conexao.php";
 include "verifica_login.php"; 
 include "info_usuario.php";
+
+
 
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Cache-Control: post-check=0, pre-check=0", false);
@@ -111,10 +113,10 @@ while ($row = $resultDistribuicao->fetch_assoc()) {
     <title>Dashboard - Repositório de Vídeos</title>
     <script src="logout_auto.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="css/admin.css">
-    <script src="js/darkmode2.js"></script>
-    <script src="js/sidebar.js"></script>
-    <script src="js/dropdown2.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+    <script src="../js/darkmode2.js"></script>
+    <script src="../js/sidebar.js"></script>
+    <script src="../js/dropdown2.js"></script>
     
     <style>
         .dashboard-container {
@@ -504,16 +506,16 @@ while ($row = $resultDistribuicao->fetch_assoc()) {
                 </div>
                 <div class="usuario-menu" id="menuPerfil">
                     <a href="alterar_senha2.php">
-                        <img class="icone" src="icones/cadeado1.png" alt="Alterar"> 
+                        <img class="icone" src="../icones/cadeado1.png" alt="Alterar"> 
                         Alterar Senha
                     </a>
                     <a href="logout.php">
-                        <img class="iconelogout" src="icones/logout1.png" alt="Logout">  
+                        <img class="iconelogout" src="../icones/logout1.png" alt="Logout">  
                         Sair
                     </a>
                 </div>
             </div>
-            <img class="dark-toggle" id="darkToggle" src="icones/lua.png" alt="Modo Escuro">
+            <img class="dark-toggle" id="darkToggle" src="../icones/lua.png" alt="Modo Escuro">
         </div>
     </sidebar>
 

@@ -78,9 +78,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta name="viewport"  content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
     <title>Login</title>
-           <link rel="stylesheet" href="css/admin.css">
-                <script src="js/darkmode2.js"></script>
-     <script src="js/mostrarSenha.js"></script>
+           <link rel="stylesheet" href="../css/admin.css">
+                <script src="../js/darkmode2.js"></script>
+     <script src="../js/mostrarSenha.js"></script>
      <style>
         
 .logo {

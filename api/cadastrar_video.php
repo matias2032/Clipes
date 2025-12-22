@@ -1,6 +1,6 @@
 <?php
 // cadastrar_video.php
-include "conexao.php";
+include  "conexao.php";
 include "verifica_login.php";
 include "info_usuario.php";
 
@@ -132,10 +132,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cadastrar Vídeo</title>
-    <link rel="stylesheet" href="css/admin.css">
-    <script src="js/darkmode2.js"></script>
-    <script src="js/sidebar.js"></script>
-    <script src="js/dropdown2.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+    <script src="../js/darkmode2.js"></script>
+    <script src="../js/sidebar.js"></script>
+    <script src="../js/dropdown2.js"></script>
     
     <style>
         .drop-zone {
@@ -176,14 +176,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <div class="usuario-menu" id="menuPerfil">
             
                     <a href="alterar_senha2.php">
-                        <img class="icone" src="icones/cadeado1.png" alt="Alterar"> Alterar Senha
+                        <img class="icone" src="../icones/cadeado1.png" alt="Alterar"> Alterar Senha
                     </a>
                     <a href="logout.php">
-                        <img class="iconelogout" src="icones/logout1.png" alt="Logout"> Sair
+                        <img class="iconelogout" src="../icones/logout1.png" alt="Logout"> Sair
                     </a>
                 </div>
             </div>
-            <img class="dark-toggle" id="darkToggle" src="icones/lua.png" alt="Modo Escuro">
+            <img class="dark-toggle" id="darkToggle" src="../icones/lua.png" alt="Modo Escuro">
         </div>
     </sidebar>
 

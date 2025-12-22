@@ -160,11 +160,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_visualizaca
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Video Repository</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-<link rel="stylesheet" href="css/basico.css">
-<script src="js/dropdown.js"></script>
-<script src="js/paginacao.js"></script>
-<script src="js/darkmode1.js"></script>
-<script src="js/sidebar2.js"></script>
+
+
+<link rel="stylesheet" href="../css/basico.css">
+<script src="../js/dropdown.js"></script>
+<script src="../js/paginacao.js"></script>
+<script src="../js/darkmode1.js"></script>
+<script src="../js/sidebar2.js"></script>
+
 </head>
 <body>
 
@@ -194,22 +197,22 @@ $corAvatar = gerarCor($nomeCompleto);
 
         <div class="logo">
             <a href="index.php" style="text-decoration: none; display: flex; align-items: center; gap: 10px;">
-                <img src="icones/logo.png" alt="Logo" class="logo-img" style="height: 40px;">
+                <img src="../icones/logo.png" alt="Logo" class="logo-img" style="height: 40px;">
                 <span class="logo-text">VideoHub</span>
             </a>
         </div>
 
         <div class="nav-links desktop-only">
             <a href="index.php">
-                <img class="icone2" src="icones/casa1.png" alt="Home"> Home
+                <img class="icone2" src="../icones/casa1.png" alt="Home"> Home
             </a>
             <a href="index.php">
-                <img class="icone2" src="icones/video.png" alt="Videos"> Videos
+                <img class="icone2" src="../icones/video.png" alt="Videos"> Videos
             </a>
         </div>
 
         <div class="acoes-usuario">
-            <img class="dark-toggle" id="darkToggle" src="icones/lua.png" alt="Dark Mode" title="Toggle theme">
+            <img class="dark-toggle" id="darkToggle" src="../icones/lua.png" alt="Dark Mode" title="Toggle theme">
 
             <?php if ($usuarioLogado): ?>
                 <div class="usuario-info usuario-desktop" id="usuarioDropdown">
@@ -223,17 +226,17 @@ $corAvatar = gerarCor($nomeCompleto);
 
                         <div class="menu-perfil" id="menuPerfil">
                             <a href="alterar_senha2.php">
-                                <img class="icone" src="icones/cadeado1.png"> Change Password
+                                <img class="icone" src="../icones/cadeado1.png"> Change Password
                             </a>
                             <a href="logout.php" style="color: #d32f2f;">
-                                <img class="iconelogout" src="icones/logout1.png"> Logout
+                                <img class="iconelogout" src="../icones/logout1.png"> Logout
                             </a>
                         </div>
                     </div>
                 </div>
             <?php else: ?>
                 <a href="login.php" class="btn-login">
-                    <img class="icone2" src="icones/login1.png"> Login
+                    <img class="icone2" src="../icones/login1.png"> Login
                 </a>
             <?php endif; ?>
         </div>
@@ -247,8 +250,8 @@ $corAvatar = gerarCor($nomeCompleto);
     </div>
 
     <ul class="sidebar-links">
-        <li><a href="index.php"><img class="icone2" src="icones/casa1.png"> Home</a></li>
-        <li><a href="index.php"><img class="icone2" src="icones/video.png"> Videos</a></li>
+        <li><a href="index.php"><img class="icone2" src="../icones/casa1.png"> Home</a></li>
+        <li><a href="index.php"><img class="icone2" src="../icones/video.png"> Videos</a></li>
     </ul>
 </nav>
 <div class="menu-overlay hidden" id="menuOverlay"></div>

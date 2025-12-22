@@ -13,10 +13,10 @@ if (!isset($_SESSION['usuario'])) {
 }
 
 $usuario = $_SESSION['usuario'];
-$id_perfil = $usuario['id_perfil'] ?? null;
+$id_perfil = $usuario['idperfil'] ?? null;
 
 // Apenas Admin pode editar
-if ($id_perfil != 1) {
+if ($id_perfil !== 1) {
     header("Location: ver_videos.php");
     exit;
 }
@@ -209,11 +209,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Editar Vídeo</title>
-<link rel="stylesheet" href="css/admin.css">
-<script src="logout_auto.js"></script>
-<script src="js/darkmode2.js"></script>
-<script src="js/sidebar.js"></script>
-<script src="js/dropdown2.js"></script>
+<link rel="stylesheet" href="../css/admin.css">
+<script src="../logout_auto.js"></script>
+<script src="../js/darkmode2.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/dropdown2.js"></script>
 
 <style>
 .drop-zone {
@@ -251,17 +251,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         </div>
         <div class="usuario-menu" id="menuPerfil">
             <a href='editarusuario.php?id_usuario=<?= $usuario['id_usuario'] ?>'>
-                <img class="icone" src="icones/user1.png" alt="Editar"> Editar Dados Pessoais
+                <img class="icone" src="../icones/user1.png" alt="Editar"> Editar Dados Pessoais
             </a>
             <a href="alterar_senha2.php">
-                <img class="icone" src="icones/cadeado1.png" alt="Alterar"> Alterar Senha
+                <img class="icone" src="../icones/cadeado1.png" alt="Alterar"> Alterar Senha
             </a>
             <a href="logout.php">
-                <img class="iconelogout" src="icones/logout1.png" alt="Logout"> Sair
+                <img class="iconelogout" src="../icones/logout1.png" alt="Logout"> Sair
             </a>
         </div>
     </div>
-    <img class="dark-toggle" id="darkToggle" src="icones/lua.png" alt="Modo Escuro">
+    <img class="dark-toggle" id="darkToggle" src="../icones/lua.png" alt="Modo Escuro">
   </div>
 </sidebar>
 

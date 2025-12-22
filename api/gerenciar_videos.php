@@ -106,11 +106,11 @@ if ($resD) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gerenciar Vídeos</title>
-<link rel="stylesheet" href="css/admin.css">
+<link rel="stylesheet" href="../css/admin.css">
 <script src="logout_auto.js"></script>
-<script src="js/darkmode2.js"></script>
-<script src="js/sidebar.js"></script>
-<script src="js/dropdown2.js"></script>
+<script src="../js/darkmode2.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/dropdown2.js"></script>
 
 <style>
     /* Estilos Gerais Mantidos */
@@ -323,14 +323,14 @@ if ($resD) {
         </div>
         <div class="usuario-menu" id="menuPerfil">
             <a href="alterar_senha2.php">
-                <img class="icone" src="icones/cadeado1.png" alt="Alterar"> Alterar Senha
+                <img class="icone" src="../icones/cadeado1.png" alt="Alterar"> Alterar Senha
             </a>
             <a href="logout.php">
-                <img class="iconelogout" src="icones/logout1.png" alt="Logout"> Sair
+                <img class="iconelogout" src="../icones/logout1.png" alt="Logout"> Sair
             </a>
         </div>
     </div>
-    <img class="dark-toggle" id="darkToggle" src="icones/lua.png" alt="Modo Escuro">
+    <img class="dark-toggle" id="darkToggle" src="../icones/lua.png" alt="Modo Escuro">
   </div>
 </sidebar>
 
@@ -459,7 +459,7 @@ if ($resD) {
 
                 <div class="card-actions">
                     <a href="editar_video.php?id_video=<?= $v['id_video'] ?>" class="action-edit">
-                        ✏️ Editar
+                         Editar
                     </a>
                     <a href="toggle_video_status.php?id_video=<?= $v['id_video'] ?>&status=<?= $v['ativo'] ? 0 : 1 ?>" 
                        class="action-toggle <?= $v['ativo'] ? 'is-active' : '' ?>"
