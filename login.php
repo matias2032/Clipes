@@ -1,6 +1,5 @@
 <?php
-session_save_path('/tmp'); 
-session_start();
+require_once "verifica_login_opcional.php"; 
 include "conexao.php"; 
 
 $erro = '';

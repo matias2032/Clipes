@@ -1,14 +1,73 @@
 <?php
-// verifica_login.php
-session_save_path('/tmp'); // Configuração para Vercel ANTES do start
-session_start();
+// verifica_login.php - Para páginas PRIVADAS (login obrigatório)
+// Este arquivo redireciona para login se não estiver autenticado
+// Também pode verificar se é administrador
 
-if (!isset($_SESSION['usuario'])) {
-    $urlAtual = $_SERVER['REQUEST_URI'];
-    $_SESSION['url_destino'] = $urlAtual;
+// ==================== CONFIGURAÇÃO DE SESSÃO ====================
+// Configuração específica para Vercel
+session_save_path('/tmp');
 
-    header("Location: login.php");
-    exit;
+// Configurações de segurança
+ini_set('session.cookie_httponly', 1);
+ini_set('session.use_only_cookies', 1);
+ini_set('session.cookie_secure', 0); // Mude para 1 se usar HTTPS
+ini_set('session.cookie_samesite', 'Lax');
+
+// Tempo de vida da sessão (24 horas)
+ini_set('session.gc_maxlifetime', 86400);
+ini_set('session.cookie_lifetime', 86400);
+
+// Inicia a sessão se ainda não estiver ativa
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
 }
-$usuario = $_SESSION['usuario'];
+
+// ==================== FUNÇÕES AUXILIARES ====================
+
+// Verifica se usuário está logado
+function isLoggedIn() {
+    return isset($_SESSION['usuario']) && is_array($_SESSION['usuario']);
+}
+
+// Retorna dados do usuário logado (ou null)
+function getUsuario() {
+    return isLoggedIn() ? $_SESSION['usuario'] : null;
+}
+
+// Verifica se usuário tem perfil específico
+function hasProfile($idperfil) {
+    if (!isLoggedIn()) return false;
+    return (int)$_SESSION['usuario']['idperfil'] === (int)$idperfil;
+}
+
+// Verifica se é administrador (idperfil = 1)
+function isAdmin() {
+    return hasProfile(1);
+}
+
+// Redireciona para login se não autenticado
+function requireLogin() {
+    if (!isLoggedIn()) {
+        $_SESSION['url_destino'] = $_SERVER['REQUEST_URI'];
+        header("Location: login.php");
+        exit;
+    }
+}
+
+// Redireciona para index se não for administrador
+function requireAdmin() {
+    requireLogin(); // Primeiro verifica se está logado
+    if (!isAdmin()) {
+        header("Location: index.php");
+        exit;
+    }
+}
+
+// ==================== LÓGICA DE VERIFICAÇÃO ====================
+
+// Verifica se está logado (sempre redireciona se não estiver)
+requireLogin();
+
+// Captura dados do usuário (sempre disponível aqui)
+$usuario = getUsuario();
 ?>
