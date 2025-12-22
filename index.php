@@ -199,7 +199,7 @@ $corAvatar = gerarCor($nomeCompleto);
         <div class="logo">
             <a href="index.php" style="text-decoration: none; display: flex; align-items: center; gap: 10px;">
                 <img src="../icones/logo.png" alt="Logo" class="logo-img" style="height: 40px;">
-                <span class="logo-text">VideoHub</span>
+                <span class="logo-text">Forbbiben Nest</span>
             </a>
         </div>
 
