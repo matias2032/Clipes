@@ -1,6 +1,6 @@
 <?php
-include "conexao.php";
 require_once "verifica_login.php";
+include "conexao.php";
 include "info_usuario.php";
 
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");

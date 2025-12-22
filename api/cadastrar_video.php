@@ -1,7 +1,7 @@
 <?php
 // cadastrar_video.php
-include  "conexao.php";
 include "verifica_login.php";
+include  "conexao.php";
 include "info_usuario.php";
 
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");

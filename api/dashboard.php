@@ -1,7 +1,7 @@
 <?php
 //dashboard.php
+include "verifica_login.php";
 include "conexao.php";
-include "verifica_login.php"; 
 include "info_usuario.php";
 
 

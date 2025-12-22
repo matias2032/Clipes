@@ -1,7 +1,8 @@
 <?php
 // excluir_videos.php
-include "conexao.php";
 include "verifica_login.php";
+include "conexao.php";
+
 
 if (!isset($_SESSION['usuario'])) {
     header("Location: login.php");

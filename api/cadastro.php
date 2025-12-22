@@ -2,6 +2,7 @@
 //cadastro.php
 // 1. INCLUSÃO DA CONEXÃO NO TOPO
 // Isso permite que o SELECT de idiomas seja executado mesmo que o formulário não seja submetido (método GET).
+session_save_path('/tmp'); 
 include "conexao.php"; 
 
 $mensagem = "";
