@@ -1,7 +1,28 @@
 <?php
-// login.php - VERSÃO CONSOLIDADA
-require_once "verifica_login_opcional.php"; // Apenas inicia sessão
-require_once "conexao.php";
+// login.php - VERSÃO OTIMIZADA PARA MYSQL
+require_once  "conexao.php";
+require_once  "sessao_handler_db.php";
+
+// Configurar handler
+$handler = new SessionHandlerDB($conexao);
+session_set_save_handler($handler, true);
+
+// Configurar cookies
+session_set_cookie_params([
+    'lifetime' => 86400,
+    'path'     => '/',
+    'domain'   => '',
+    'secure'   => true,
+    'httponly' => true,
+    'samesite' => 'Lax'
+]);
+
+session_name('CLIPES_SESSION');
+
+// Iniciar sessão
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 $erro = '';
 
@@ -9,12 +30,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $entrada = trim($_POST["entrada"]);
     $senha = $_POST["senha"];
     
-    // Salva URL de redirecionamento se existir
+    // Salva URL de redirecionamento
     if (isset($_GET['redir'])) {
         $_SESSION['url_destino'] = basename($_GET['redir']);
     }
 
-    // Buscar usuário por nome
     $sql = "SELECT * FROM usuario WHERE nome = ? LIMIT 1";
     $stmt = $conexao->prepare($sql);
 
@@ -29,13 +49,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($resultado->num_rows == 1) {
         $usuario = $resultado->fetch_assoc();
 
-        // Verificar a senha
         if (password_verify($senha, $usuario['senha_hash'])) {
             
-            // CRITICAL: Regenerar ID da sessão ANTES de salvar dados
+            // CRÍTICO: Regenerar ID ANTES de salvar dados
             session_regenerate_id(true);
             
-            // Salvar dados do usuário na sessão
+            // Salvar dados do usuário
             $_SESSION['usuario'] = [
                 'id_usuario' => $usuario['id_usuario'],
                 'nome' => $usuario['nome'],
@@ -44,7 +63,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 'primeira_senha' => $usuario['primeira_senha']
             ];
 
-            // Verifica se é primeira senha
+            // ✅ FORÇA GRAVAÇÃO DA SESSÃO (ESSENCIAL NO SERVERLESS)
+            session_write_close();
+            
+            // ✅ REINICIA SESSÃO para próxima requisição
+            session_start();
+
+            // Debug (remova após testar)
+            error_log("LOGIN SUCESSO - ID Sessão: " . session_id());
+            error_log("LOGIN SUCESSO - Dados: " . print_r($_SESSION['usuario'], true));
+
+            // Primeira senha
             if ((int)$usuario['primeira_senha'] === 1) {
                 header("Location: alterar_senha.php?primeiro=1");
                 exit;
@@ -58,14 +87,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 exit;
             }
 
-            // Redirecionamento por Perfil usando função auxiliar
-            if (isAdmin()) {
+            // Redirecionamento por perfil
+            if ((int)$usuario['idperfil'] === 1) {
                 header("Location: dashboard.php");
-                exit;
             } else {
                 header("Location: index.php");
-                exit;
             }
+            exit;
             
         } else {
             $erro = "Senha incorreta.";
@@ -88,23 +116,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <script src="../js/darkmode2.js"></script>
     <script src="../js/mostrarSenha.js"></script>
     <style>
-        .logo {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #d32f2f;
-        }
         .alert-error {
             background-color: #ffebee;
             color: #c62828;
             padding: 10px;
             border-radius: 4px;
             margin: 10px 0;
-            font-size: 0.9em;
             border: 1px solid #ef9a9a;
-        }
-        .alert-error a {
-            color: #b71c1c;
-            font-weight: bold;
         }
     </style>
 </head>
@@ -123,7 +141,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   
   <div style="text-align: left; margin-top: 10px;">
     <label>Usuário:</label>
-    <input type="text" name="entrada" placeholder="nome, email ou número" required 
+    <input type="text" name="entrada" placeholder="nome" required 
            value="<?= htmlspecialchars($_POST['entrada'] ?? '') ?>"><br><br>
 
     <label for="senha">Senha:</label>
