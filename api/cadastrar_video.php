@@ -1,10 +1,8 @@
 <?php
-// cadastrar_video.php
+// api/cadastrar_video.php
 include "verifica_login.php";
 include "conexao.php";
 include "info_usuario.php";
-
-// INCLUSÃO DA BIBLIOTECA CLOUDINARY
 include "cloudinary_upload.php"; 
 
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
@@ -31,55 +29,29 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $duracao = trim($_POST['duracao'] ?? '');
     $categorias_selecionadas = $_POST['categorias'] ?? [];
     
-    $arquivo_previa = $_FILES['video_previa'] ?? null;
-    $arquivo_imagem = $_FILES['imagem_destaque'] ?? null;
+    // Receber dados em Base64
+    $previa_base64 = $_POST['video_previa_base64'] ?? '';
+    $imagem_base64 = $_POST['imagem_base64'] ?? '';
     
     // Validação
     if (empty($nome_video) || empty($categorias_selecionadas)) {
         $mensagem = "⚠️ Nome do vídeo e pelo menos uma categoria são obrigatórios.";
         $tipo_mensagem = "error";
-    } elseif (!isset($arquivo_previa) || $arquivo_previa['error'] != UPLOAD_ERR_OK) {
+    } elseif (empty($previa_base64)) {
         $mensagem = "⚠️ A prévia do vídeo é obrigatória.";
         $tipo_mensagem = "error";
-    } elseif (!isset($arquivo_imagem) || $arquivo_imagem['error'] != UPLOAD_ERR_OK) {
+    } elseif (empty($imagem_base64)) {
         $mensagem = "⚠️ A imagem de destaque é obrigatória.";
         $tipo_mensagem = "error";
     } else {
         $conexao->begin_transaction();
         
         try {
-            // --- UPLOAD DA PRÉVIA (VÍDEO) NO CLOUDINARY ---
+            // Upload da prévia para Cloudinary
+            $caminho_previa = uploadToCloudinaryBase64($previa_base64, 'videos/previas', 'video');
             
-            $tipos_video_permitidos = ['video/mp4', 'video/webm', 'video/ogg'];
-            if (!in_array($arquivo_previa['type'], $tipos_video_permitidos)) {
-                throw new Exception("Formato de vídeo não permitido. Use MP4, WebM ou OGG.");
-            }
-            
-            if ($arquivo_previa['size'] > 100 * 1024 * 1024) { // 100MB
-                throw new Exception("A prévia é muito grande. Limite: 100MB.");
-            }
-
-            // Chama a função do seu arquivo cloudinary_upload.php
-            // Pasta definida como 'videos/previas' para organização no Cloudinary
-            $caminho_previa = uploadToCloudinary($arquivo_previa['tmp_name'], 'videos/previas', 'video');
-            
-            
-            // --- UPLOAD DA IMAGEM NO CLOUDINARY ---
-            
-            $tipos_imagem_permitidos = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-            if (!in_array($arquivo_imagem['type'], $tipos_imagem_permitidos)) {
-                throw new Exception("Formato de imagem não permitido. Use JPG, PNG ou WebP.");
-            }
-            
-            if ($arquivo_imagem['size'] > 5 * 1024 * 1024) { // 5MB
-                throw new Exception("A imagem é muito grande. Limite: 5MB.");
-            }
-            
-            // Chama a função para imagem (resource_type = 'image')
-            $caminho_imagem = uploadToCloudinary($arquivo_imagem['tmp_name'], 'videos/imagens', 'image');
-            
-            
-            // --- INSERÇÃO NO BANCO DE DADOS (Mantida idêntica, mas salva a URL) ---
+            // Upload da imagem para Cloudinary
+            $caminho_imagem = uploadToCloudinaryBase64($imagem_base64, 'videos/imagens', 'image');
             
             // Inserir vídeo
             $sql_video = "INSERT INTO video (nome_video, descricao, preco, duracao, caminho_previa, id_usuario) 
@@ -111,9 +83,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $conexao->rollback();
             $mensagem = "❌ Erro: " . $e->getMessage();
             $tipo_mensagem = "error";
-            
-            // Observação: Com Cloudinary, não usamos unlink() pois o arquivo não está local.
-            // Se quisesse deletar do Cloudinary em caso de erro no SQL, usaria deleteFromCloudinary aqui.
         }
     }
 }
@@ -147,6 +116,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         .preview-container { margin-top: 15px; }
         .preview-container img { max-width: 300px; border-radius: 8px; }
         .preview-container video { max-width: 500px; border-radius: 8px; }
+        .upload-progress {
+            display: none;
+            margin-top: 10px;
+            padding: 10px;
+            background: #e8f5e9;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
@@ -167,7 +143,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <div class="usuario-apelido"><?= $apelido ?></div>
                 </div>
                 <div class="usuario-menu" id="menuPerfil">
-            
                     <a href="alterar_senha2.php">
                         <img class="icone" src="../icones/cadeado1.png" alt="Alterar"> Alterar Senha
                     </a>
@@ -190,7 +165,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 </div>
             <?php endif; ?>
 
-            <form method="post" action="" enctype="multipart/form-data" class="form-container">
+            <form method="post" action="" id="formCadastro" class="form-container">
+                
+                <input type="hidden" name="video_previa_base64" id="video_previa_base64">
+                <input type="hidden" name="imagem_base64" id="imagem_base64">
                 
                 <div class="form-group">
                     <label for="nome_video">Nome do Vídeo *</label>
@@ -227,7 +205,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 <div class="form-group">
                     <label>Prévia do Vídeo * (MP4, WebM ou OGG - Máx: 100MB)</label>
-                    <input type="file" name="video_previa" id="video_previa" accept="video/*" class="file-input" required>
+                    <input type="file" id="video_previa" accept="video/*" class="file-input" required>
                     <div class="drop-zone" id="dropZonePrevia">
                         <div class="drop-zone-text">Arraste e solte a prévia aqui</div>
                         <button type="button" onclick="document.getElementById('video_previa').click()">
@@ -235,12 +213,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         </button>
                         <p class="file-name" id="fileNamePrevia"></p>
                         <div class="preview-container" id="previewPrevia"></div>
+                        <div class="upload-progress" id="progressPrevia"></div>
                     </div>
                 </div>
 
                 <div class="form-group">
                     <label>Imagem de Destaque * (JPG, PNG ou WebP - Máx: 5MB)</label>
-                    <input type="file" name="imagem_destaque" id="imagem_destaque" accept="image/*" class="file-input" required>
+                    <input type="file" id="imagem_destaque" accept="image/*" class="file-input" required>
                     <div class="drop-zone" id="dropZoneImagem">
                         <div class="drop-zone-text">Arraste e solte a imagem aqui</div>
                         <button type="button" onclick="document.getElementById('imagem_destaque').click()">
@@ -248,10 +227,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         </button>
                         <p class="file-name" id="fileNameImagem"></p>
                         <div class="preview-container" id="previewImagem"></div>
+                        <div class="upload-progress" id="progressImagem"></div>
                     </div>
                 </div>
 
-                <button type="submit">Cadastrar Vídeo</button>
+                <button type="submit" id="btnSubmit">Cadastrar Vídeo</button>
             </form>
         </div>
     </div>
@@ -264,16 +244,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <script>
         // Drag and Drop para Prévia
-        setupDropZone('dropZonePrevia', 'video_previa', 'fileNamePrevia', 'previewPrevia', 'video');
+        setupDropZone('dropZonePrevia', 'video_previa', 'fileNamePrevia', 'previewPrevia', 'video', 'video_previa_base64', 'progressPrevia');
         
         // Drag and Drop para Imagem
-        setupDropZone('dropZoneImagem', 'imagem_destaque', 'fileNameImagem', 'previewImagem', 'image');
+        setupDropZone('dropZoneImagem', 'imagem_destaque', 'fileNameImagem', 'previewImagem', 'image', 'imagem_base64', 'progressImagem');
 
-        function setupDropZone(dropZoneId, inputId, fileNameId, previewId, type) {
+        function setupDropZone(dropZoneId, inputId, fileNameId, previewId, type, hiddenInputId, progressId) {
             const dropZone = document.getElementById(dropZoneId);
             const fileInput = document.getElementById(inputId);
             const fileNameDisplay = document.getElementById(fileNameId);
             const previewContainer = document.getElementById(previewId);
+            const hiddenInput = document.getElementById(hiddenInputId);
+            const progressDiv = document.getElementById(progressId);
 
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
                 dropZone.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
@@ -291,34 +273,69 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 const files = e.dataTransfer.files;
                 if (files.length > 0) {
                     fileInput.files = files;
-                    displayFile(files[0], fileNameDisplay, previewContainer, type);
+                    handleFile(files[0], fileNameDisplay, previewContainer, type, hiddenInput, progressDiv);
                 }
             });
 
             fileInput.addEventListener('change', () => {
                 if (fileInput.files.length > 0) {
-                    displayFile(fileInput.files[0], fileNameDisplay, previewContainer, type);
+                    handleFile(fileInput.files[0], fileNameDisplay, previewContainer, type, hiddenInput, progressDiv);
                 }
             });
         }
 
-        function displayFile(file, nameDisplay, previewContainer, type) {
+        function handleFile(file, nameDisplay, previewContainer, type, hiddenInput, progressDiv) {
             nameDisplay.textContent = `Arquivo: ${file.name}`;
-            previewContainer.innerHTML = '';
-
-            if (type === 'video') {
-                const video = document.createElement('video');
-                video.src = URL.createObjectURL(file);
-                video.controls = true;
-                video.style.maxWidth = '100%';
-                previewContainer.appendChild(video);
-            } else if (type === 'image') {
-                const img = document.createElement('img');
-                img.src = URL.createObjectURL(file);
-                img.style.maxWidth = '100%';
-                previewContainer.appendChild(img);
-            }
+            progressDiv.style.display = 'block';
+            progressDiv.textContent = 'Processando arquivo...';
+            
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                const base64Data = e.target.result;
+                hiddenInput.value = base64Data;
+                
+                // Mostrar preview
+                previewContainer.innerHTML = '';
+                if (type === 'video') {
+                    const video = document.createElement('video');
+                    video.src = base64Data;
+                    video.controls = true;
+                    video.style.maxWidth = '100%';
+                    previewContainer.appendChild(video);
+                } else if (type === 'image') {
+                    const img = document.createElement('img');
+                    img.src = base64Data;
+                    img.style.maxWidth = '100%';
+                    previewContainer.appendChild(img);
+                }
+                
+                progressDiv.textContent = '✅ Arquivo pronto para envio';
+                setTimeout(() => { progressDiv.style.display = 'none'; }, 2000);
+            };
+            
+            reader.onerror = function() {
+                progressDiv.textContent = '❌ Erro ao processar arquivo';
+                progressDiv.style.background = '#ffebee';
+            };
+            
+            reader.readAsDataURL(file);
         }
+
+        // Validação do formulário
+        document.getElementById('formCadastro').addEventListener('submit', function(e) {
+            const videoBase64 = document.getElementById('video_previa_base64').value;
+            const imagemBase64 = document.getElementById('imagem_base64').value;
+            
+            if (!videoBase64 || !imagemBase64) {
+                e.preventDefault();
+                alert('Por favor, selecione a prévia do vídeo e a imagem de destaque.');
+                return false;
+            }
+            
+            document.getElementById('btnSubmit').disabled = true;
+            document.getElementById('btnSubmit').textContent = 'Enviando...';
+        });
     </script>
 </body>
 </html>

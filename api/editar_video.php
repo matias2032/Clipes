@@ -1,10 +1,8 @@
 <?php
-// editar_video.php
+// api/editar_video.php
 include "verifica_login.php";
 include "conexao.php";
 include "info_usuario.php";
-
-// --- INTEGRAÇÃO CLOUDINARY ---
 include "cloudinary_upload.php"; 
 
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
@@ -16,9 +14,8 @@ if (!isset($_SESSION['usuario'])) {
 }
 
 $usuario = $_SESSION['usuario'];
-$id_perfil = $usuario['idperfil'] ?? null; // Verifique se no seu sistema é idperfil ou id_perfil
+$id_perfil = $usuario['idperfil'] ?? null;
 
-// Apenas Admin pode editar
 if ($id_perfil !== 1) {
     header("Location: ver_videos.php");
     exit;
@@ -47,7 +44,7 @@ if (!$video) {
     die("Vídeo não encontrado.");
 }
 
-// Carregar categorias atuais do vídeo
+// Carregar categorias atuais
 $stmtCatAtual = $conexao->prepare("SELECT id_categoria FROM video_categoria WHERE id_video = ?");
 $stmtCatAtual->bind_param("i", $id_video);
 $stmtCatAtual->execute();
@@ -71,11 +68,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $remover_previa = isset($_POST['remover_previa']);
     $remover_imagem = isset($_POST['remover_imagem']);
     
-    // Verificamos se foi enviado arquivo pelo nome original
-    $nova_previa = $_FILES['video_previa']['name'] ?? "";
-    $nova_imagem = $_FILES['imagem_destaque']['name'] ?? "";
+    // Receber Base64
+    $nova_previa_base64 = $_POST['video_previa_base64'] ?? '';
+    $nova_imagem_base64 = $_POST['imagem_base64'] ?? '';
     
-    // Verificar alterações (Lógica mantida)
     $houveAlteracao = (
         $nome_video !== $video['nome_video'] ||
         $descricao !== $video['descricao'] ||
@@ -83,8 +79,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $duracao !== $video['duracao'] ||
         array_diff($categorias_selecionadas, $categorias_atuais) ||
         array_diff($categorias_atuais, $categorias_selecionadas) ||
-        !empty($nova_previa) ||
-        !empty($nova_imagem) ||
+        !empty($nova_previa_base64) ||
+        !empty($nova_imagem_base64) ||
         $remover_previa ||
         $remover_imagem
     );
@@ -96,95 +92,50 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $conexao->begin_transaction();
         
         try {
-            // Inicializa com os caminhos atuais
             $caminho_previa_final = $video['caminho_previa'];
             $caminho_imagem_final = $video['caminho_imagem'];
             
-            // --- LÓGICA DA PRÉVIA (VÍDEO) ---
-            
-            // 1. Se pediu para remover, limpa o caminho
+            // PRÉVIA
             if ($remover_previa) {
-                // Se você tiver função de deletar no Cloudinary, use aqui:
-                // deleteFromCloudinary($caminho_previa_final, 'video');
                 $caminho_previa_final = null;
             }
             
-            // 2. Se enviou novo vídeo, faz upload no Cloudinary
-            if (!empty($nova_previa) && $_FILES['video_previa']['error'] === UPLOAD_ERR_OK) {
-                
-                $tipos_video_permitidos = ['video/mp4', 'video/webm', 'video/ogg'];
-                if (!in_array($_FILES['video_previa']['type'], $tipos_video_permitidos)) {
-                    throw new Exception("Formato de vídeo não permitido.");
-                }
-                
-                if ($_FILES['video_previa']['size'] > 100 * 1024 * 1024) {
-                    throw new Exception("Prévia muito grande. Limite: 100MB.");
-                }
-                
-                // Upload para a pasta 'videos/previas' no Cloudinary
-                $url_novo_video = uploadToCloudinary($_FILES['video_previa']['tmp_name'], 'videos/previas', 'video');
-                
+            if (!empty($nova_previa_base64)) {
+                $url_novo_video = uploadToCloudinaryBase64($nova_previa_base64, 'videos/previas', 'video');
                 if ($url_novo_video) {
-                    // Se existia um anterior e você quiser economizar espaço:
-                    // if ($caminho_previa_final) deleteFromCloudinary($caminho_previa_final, 'video');
-                    
                     $caminho_previa_final = $url_novo_video;
                 } else {
-                    throw new Exception("Falha no upload do vídeo para o Cloudinary.");
+                    throw new Exception("Falha no upload do vídeo.");
                 }
             }
             
-            // --- LÓGICA DA IMAGEM ---
-            
-            // 1. Se pediu para remover imagem
+            // IMAGEM
             if ($remover_imagem) {
-                // if ($caminho_imagem_final) deleteFromCloudinary($caminho_imagem_final, 'image');
                 $conexao->query("DELETE FROM video_imagem WHERE id_video = $id_video AND imagem_principal = 1");
                 $caminho_imagem_final = null;
             }
             
-            // 2. Se enviou nova imagem, faz upload no Cloudinary
-            if (!empty($nova_imagem) && $_FILES['imagem_destaque']['error'] === UPLOAD_ERR_OK) {
-                
-                $tipos_imagem_permitidos = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-                if (!in_array($_FILES['imagem_destaque']['type'], $tipos_imagem_permitidos)) {
-                    throw new Exception("Formato de imagem não permitido.");
-                }
-                
-                if ($_FILES['imagem_destaque']['size'] > 5 * 1024 * 1024) {
-                    throw new Exception("Imagem muito grande. Limite: 5MB.");
-                }
-                
-                // Upload para a pasta 'videos/imagens' no Cloudinary
-                $url_nova_imagem = uploadToCloudinary($_FILES['imagem_destaque']['tmp_name'], 'videos/imagens', 'image');
-                
+            if (!empty($nova_imagem_base64)) {
+                $url_nova_imagem = uploadToCloudinaryBase64($nova_imagem_base64, 'videos/imagens', 'image');
                 if ($url_nova_imagem) {
-                    // Remove registro antigo da tabela de imagens se existir (para substituir)
                     $conexao->query("DELETE FROM video_imagem WHERE id_video = $id_video AND imagem_principal = 1");
-                    
-                    // Inserir nova imagem com a URL do Cloudinary
                     $stmtImg = $conexao->prepare("INSERT INTO video_imagem (id_video, caminho_imagem, imagem_principal) VALUES (?, ?, 1)");
                     $stmtImg->bind_param("is", $id_video, $url_nova_imagem);
                     $stmtImg->execute();
-                    
                     $caminho_imagem_final = $url_nova_imagem;
                 } else {
-                    throw new Exception("Falha no upload da imagem para o Cloudinary.");
+                    throw new Exception("Falha no upload da imagem.");
                 }
             }
             
-            // --- ATUALIZAR DADOS GERAIS DO VÍDEO ---
-            // Nota: Se a imagem mudou, já atualizamos na tabela video_imagem acima.
-            // Aqui atualizamos video, preco, e o link da prévia.
-            
+            // Atualizar vídeo
             $sql_update = "UPDATE video SET nome_video=?, descricao=?, preco=?, duracao=?, caminho_previa=? WHERE id_video=?";
             $stmt_up = $conexao->prepare($sql_update);
             $stmt_up->bind_param("ssdssi", $nome_video, $descricao, $preco, $duracao, $caminho_previa_final, $id_video);
             $stmt_up->execute();
             
-            // --- ATUALIZAR CATEGORIAS ---
+            // Atualizar categorias
             $conexao->query("DELETE FROM video_categoria WHERE id_video = $id_video");
-            
             if (!empty($categorias_selecionadas)) {
                 $stmtCat = $conexao->prepare("INSERT INTO video_categoria (id_video, id_categoria) VALUES (?, ?)");
                 foreach ($categorias_selecionadas as $id_categoria) {
@@ -194,20 +145,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
             
             $conexao->commit();
-            
             $mensagem = "✅ Vídeo atualizado com sucesso!";
             $tipo_mensagem = "success";
             $redirecionar = true;
             
-            // Recarregar dados para exibir atualizado
-            $stmt = $conexao->prepare("SELECT v.*, vi.caminho_imagem FROM video v 
-                                      LEFT JOIN video_imagem vi ON v.id_video = vi.id_video AND vi.imagem_principal = 1 
-                                      WHERE v.id_video = ?");
-            $stmt->bind_param("i", $id_video);
+            // Recarregar dados
             $stmt->execute();
             $video = $stmt->get_result()->fetch_assoc();
-            
-            // Recarregar categorias
             $stmtCatAtual->execute();
             $resCatAtual = $stmtCatAtual->get_result();
             $categorias_atuais = [];
@@ -231,17 +175,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Editar Vídeo</title>
 <link rel="stylesheet" href="../css/admin.css">
-<script src="../logout_auto.js"></script>
 <script src="../js/darkmode2.js"></script>
 <script src="../js/sidebar.js"></script>
 <script src="../js/dropdown2.js"></script>
 
 <style>
-.drop-zone {
-    width: 100%; min-height: 150px; padding: 20px; margin-bottom: 20px;
-    text-align: center; border: 2px dashed #3498db; border-radius: 10px;
-    background-color: #ecf0f1; transition: all 0.3s;
-}
+.drop-zone { width: 100%; min-height: 150px; padding: 20px; margin-bottom: 20px; text-align: center; border: 2px dashed #3498db; border-radius: 10px; background-color: #ecf0f1; transition: all 0.3s; }
 .drop-zone.drag-over { background-color: #d0e7f7; border-color: #2980b9; }
 .file-input { display: none; }
 .file-name { font-weight: bold; color: #27ae60; margin-top: 10px; }
@@ -251,6 +190,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 .preview-container img, .preview-container video { max-width: 100%; border-radius: 8px; }
 .current-file { background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
 .current-file a { color: #27ae60; text-decoration: none; font-weight: bold; }
+.upload-progress { display: none; margin-top: 10px; padding: 10px; background: #e8f5e9; border-radius: 5px; }
 </style>
 </head>
 <body>
@@ -271,9 +211,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <div class="usuario-apelido"><?= $apelido ?></div>
         </div>
         <div class="usuario-menu" id="menuPerfil">
-            <a href='editarusuario.php?id_usuario=<?= $usuario['id_usuario'] ?>'>
-                <img class="icone" src="../icones/user1.png" alt="Editar"> Editar Dados Pessoais
-            </a>
             <a href="alterar_senha2.php">
                 <img class="icone" src="../icones/cadeado1.png" alt="Alterar"> Alterar Senha
             </a>
@@ -294,7 +231,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       <div class="mensagem <?= htmlspecialchars($tipo_mensagem) ?>"><?= htmlspecialchars($mensagem) ?></div>
     <?php endif; ?>
 
-    <form method="post" enctype="multipart/form-data">
+    <form method="post" id="formEditar">
+      
+      <input type="hidden" name="video_previa_base64" id="video_previa_base64">
+      <input type="hidden" name="imagem_base64" id="imagem_base64">
       
       <div class="form-group">
         <label>Nome do Vídeo *</label>
@@ -339,15 +279,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <br><br>
             <label><input type="checkbox" name="remover_previa"> Remover prévia atual</label>
           </div>
-        <?php else: ?>
-          <p><em>Nenhuma prévia anexada.</em></p>
         <?php endif; ?>
         
-        <input type="file" name="video_previa" id="video_previa" accept="video/*" class="file-input">
+        <input type="file" id="video_previa" accept="video/*" class="file-input">
         <div class="drop-zone" id="dropZonePrevia">
           <p>Arraste nova prévia aqui ou <button type="button" onclick="document.getElementById('video_previa').click()">clique para escolher</button></p>
           <p id="fileNamePrevia" class="file-name"></p>
           <div class="preview-container" id="previewPrevia"></div>
+          <div class="upload-progress" id="progressPrevia"></div>
         </div>
       </div>
 
@@ -360,23 +299,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <br><br>
             <label><input type="checkbox" name="remover_imagem"> Remover imagem atual</label>
           </div>
-        <?php else: ?>
-          <p><em>Nenhuma imagem anexada.</em></p>
         <?php endif; ?>
         
-        <input type="file" name="imagem_destaque" id="imagem_destaque" accept="image/*" class="file-input">
+        <input type="file" id="imagem_destaque" accept="image/*" class="file-input">
         <div class="drop-zone" id="dropZoneImagem">
           <p>Arraste nova imagem aqui ou <button type="button" onclick="document.getElementById('imagem_destaque').click()">clique para escolher</button></p>
           <p id="fileNameImagem" class="file-name"></p>
           <div class="preview-container" id="previewImagem"></div>
+          <div class="upload-progress" id="progressImagem"></div>
         </div>
       </div>
 
-      <button type="submit" style="background: #27ae60; color: white; padding: 15px 30px; 
-                                   border: none; border-radius: 8px; cursor: pointer; 
-                                   font-size: 1.1em; font-weight: bold;">
-        💾 Salvar Alterações
-      </button>
+      <button type="submit" id="btnSubmit">💾 Salvar Alterações</button>
     </form>
   </div>
 </div>
@@ -388,15 +322,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <?php endif; ?>
 
 <script>
-// Drag and Drop Setup
-setupDropZone('dropZonePrevia', 'video_previa', 'fileNamePrevia', 'previewPrevia', 'video');
-setupDropZone('dropZoneImagem', 'imagem_destaque', 'fileNameImagem', 'previewImagem', 'image');
+setupDropZone('dropZonePrevia', 'video_previa', 'fileNamePrevia', 'previewPrevia', 'video', 'video_previa_base64', 'progressPrevia');
+setupDropZone('dropZoneImagem', 'imagem_destaque', 'fileNameImagem', 'previewImagem', 'image', 'imagem_base64', 'progressImagem');
 
-function setupDropZone(dropZoneId, inputId, fileNameId, previewId, type) {
+function setupDropZone(dropZoneId, inputId, fileNameId, previewId, type, hiddenInputId, progressId) {
     const dropZone = document.getElementById(dropZoneId);
     const fileInput = document.getElementById(inputId);
     const fileNameDisplay = document.getElementById(fileNameId);
     const previewContainer = document.getElementById(previewId);
+    const hiddenInput = document.getElementById(hiddenInputId);
+    const progressDiv = document.getElementById(progressId);
 
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
         dropZone.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
@@ -414,34 +349,51 @@ function setupDropZone(dropZoneId, inputId, fileNameId, previewId, type) {
         const files = e.dataTransfer.files;
         if (files.length > 0) {
             fileInput.files = files;
-            displayFile(files[0], fileNameDisplay, previewContainer, type);
+            handleFile(files[0], fileNameDisplay, previewContainer, type, hiddenInput, progressDiv);
         }
     });
 
     fileInput.addEventListener('change', () => {
         if (fileInput.files.length > 0) {
-            displayFile(fileInput.files[0], fileNameDisplay, previewContainer, type);
+            handleFile(fileInput.files[0], fileNameDisplay, previewContainer, type, hiddenInput, progressDiv);
         }
     });
 }
 
-function displayFile(file, nameDisplay, previewContainer, type) {
-    nameDisplay.textContent = `Novo arquivo: ${file.name}`;
-    previewContainer.innerHTML = '';
-
-    if (type === 'video') {
-        const video = document.createElement('video');
-        video.src = URL.createObjectURL(file);
-        video.controls = true;
-        video.style.maxWidth = '100%';
-        previewContainer.appendChild(video);
-    } else if (type === 'image') {
-        const img = document.createElement('img');
-        img.src = URL.createObjectURL(file);
-        img.style.maxWidth = '100%';
-        previewContainer.appendChild(img);
-    }
+function handleFile(file, nameDisplay, previewContainer, type, hiddenInput, progressDiv) {
+    nameDisplay.textContent = `Arquivo: ${file.name}`;
+    progressDiv.style.display = 'block';
+    progressDiv.textContent = 'Processando arquivo...';
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        hiddenInput.value = e.target.result;
+        previewContainer.innerHTML = '';
+        
+        if (type === 'video') {
+            const video = document.createElement('video');
+            video.src = e.target.result;
+            video.controls = true;
+            video.style.maxWidth = '100%';
+            previewContainer.appendChild(video);
+        } else if (type === 'image') {
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.style.maxWidth = '100%';
+            previewContainer.appendChild(img);
+        }
+        
+        progressDiv.textContent = '✅ Arquivo pronto para envio';
+        setTimeout(() => { progressDiv.style.display = 'none'; }, 2000);
+    };
+    
+    reader.readAsDataURL(file);
 }
+
+document.getElementById('formEditar').addEventListener('submit', function() {
+    document.getElementById('btnSubmit').disabled = true;
+    document.getElementById('btnSubmit').textContent = 'Salvando...';
+});
 </script>
 
 </body>
