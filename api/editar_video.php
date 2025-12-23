@@ -4,6 +4,9 @@ include "verifica_login.php";
 include "conexao.php";
 include "info_usuario.php";
 
+// --- INTEGRAÇÃO CLOUDINARY ---
+include "cloudinary_upload.php"; 
+
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Pragma: no-cache");
 
@@ -13,7 +16,7 @@ if (!isset($_SESSION['usuario'])) {
 }
 
 $usuario = $_SESSION['usuario'];
-$id_perfil = $usuario['idperfil'] ?? null;
+$id_perfil = $usuario['idperfil'] ?? null; // Verifique se no seu sistema é idperfil ou id_perfil
 
 // Apenas Admin pode editar
 if ($id_perfil !== 1) {
@@ -68,10 +71,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $remover_previa = isset($_POST['remover_previa']);
     $remover_imagem = isset($_POST['remover_imagem']);
     
+    // Verificamos se foi enviado arquivo pelo nome original
     $nova_previa = $_FILES['video_previa']['name'] ?? "";
     $nova_imagem = $_FILES['imagem_destaque']['name'] ?? "";
     
-    // Verificar alterações
+    // Verificar alterações (Lógica mantida)
     $houveAlteracao = (
         $nome_video !== $video['nome_video'] ||
         $descricao !== $video['descricao'] ||
@@ -92,23 +96,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $conexao->begin_transaction();
         
         try {
-            $caminho_previa_atual = $video['caminho_previa'];
-            $caminho_imagem_atual = $video['caminho_imagem'];
+            // Inicializa com os caminhos atuais
+            $caminho_previa_final = $video['caminho_previa'];
+            $caminho_imagem_final = $video['caminho_imagem'];
             
-            // Remover prévia se solicitado
-            if ($remover_previa && $caminho_previa_atual && file_exists($caminho_previa_atual)) {
-                unlink($caminho_previa_atual);
-                $caminho_previa_atual = null;
+            // --- LÓGICA DA PRÉVIA (VÍDEO) ---
+            
+            // 1. Se pediu para remover, limpa o caminho
+            if ($remover_previa) {
+                // Se você tiver função de deletar no Cloudinary, use aqui:
+                // deleteFromCloudinary($caminho_previa_final, 'video');
+                $caminho_previa_final = null;
             }
             
-            // Upload nova prévia
+            // 2. Se enviou novo vídeo, faz upload no Cloudinary
             if (!empty($nova_previa) && $_FILES['video_previa']['error'] === UPLOAD_ERR_OK) {
-                $dir_previa = "uploads/videos/previas/";
-                if (!is_dir($dir_previa)) mkdir($dir_previa, 0777, true);
-                
-                $ext_previa = pathinfo($_FILES['video_previa']['name'], PATHINFO_EXTENSION);
-                $nome_previa = uniqid("previa_") . "." . strtolower($ext_previa);
-                $novo_caminho_previa = $dir_previa . $nome_previa;
                 
                 $tipos_video_permitidos = ['video/mp4', 'video/webm', 'video/ogg'];
                 if (!in_array($_FILES['video_previa']['type'], $tipos_video_permitidos)) {
@@ -119,29 +121,30 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     throw new Exception("Prévia muito grande. Limite: 100MB.");
                 }
                 
-                if (move_uploaded_file($_FILES['video_previa']['tmp_name'], $novo_caminho_previa)) {
-                    if ($caminho_previa_atual && file_exists($caminho_previa_atual)) {
-                        unlink($caminho_previa_atual);
-                    }
-                    $caminho_previa_atual = $novo_caminho_previa;
+                // Upload para a pasta 'videos/previas' no Cloudinary
+                $url_novo_video = uploadToCloudinary($_FILES['video_previa']['tmp_name'], 'videos/previas', 'video');
+                
+                if ($url_novo_video) {
+                    // Se existia um anterior e você quiser economizar espaço:
+                    // if ($caminho_previa_final) deleteFromCloudinary($caminho_previa_final, 'video');
+                    
+                    $caminho_previa_final = $url_novo_video;
+                } else {
+                    throw new Exception("Falha no upload do vídeo para o Cloudinary.");
                 }
             }
             
-            // Remover imagem se solicitado
-            if ($remover_imagem && $caminho_imagem_atual && file_exists($caminho_imagem_atual)) {
-                unlink($caminho_imagem_atual);
+            // --- LÓGICA DA IMAGEM ---
+            
+            // 1. Se pediu para remover imagem
+            if ($remover_imagem) {
+                // if ($caminho_imagem_final) deleteFromCloudinary($caminho_imagem_final, 'image');
                 $conexao->query("DELETE FROM video_imagem WHERE id_video = $id_video AND imagem_principal = 1");
-                $caminho_imagem_atual = null;
+                $caminho_imagem_final = null;
             }
             
-            // Upload nova imagem
+            // 2. Se enviou nova imagem, faz upload no Cloudinary
             if (!empty($nova_imagem) && $_FILES['imagem_destaque']['error'] === UPLOAD_ERR_OK) {
-                $dir_imagem = "uploads/videos/imagens/";
-                if (!is_dir($dir_imagem)) mkdir($dir_imagem, 0777, true);
-                
-                $ext_imagem = pathinfo($_FILES['imagem_destaque']['name'], PATHINFO_EXTENSION);
-                $nome_imagem = uniqid("img_") . "." . strtolower($ext_imagem);
-                $novo_caminho_imagem = $dir_imagem . $nome_imagem;
                 
                 $tipos_imagem_permitidos = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
                 if (!in_array($_FILES['imagem_destaque']['type'], $tipos_imagem_permitidos)) {
@@ -152,32 +155,42 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     throw new Exception("Imagem muito grande. Limite: 5MB.");
                 }
                 
-                if (move_uploaded_file($_FILES['imagem_destaque']['tmp_name'], $novo_caminho_imagem)) {
-                    // Deletar imagem antiga
-                    if ($caminho_imagem_atual && file_exists($caminho_imagem_atual)) {
-                        unlink($caminho_imagem_atual);
-                    }
+                // Upload para a pasta 'videos/imagens' no Cloudinary
+                $url_nova_imagem = uploadToCloudinary($_FILES['imagem_destaque']['tmp_name'], 'videos/imagens', 'image');
+                
+                if ($url_nova_imagem) {
+                    // Remove registro antigo da tabela de imagens se existir (para substituir)
                     $conexao->query("DELETE FROM video_imagem WHERE id_video = $id_video AND imagem_principal = 1");
                     
-                    // Inserir nova imagem
+                    // Inserir nova imagem com a URL do Cloudinary
                     $stmtImg = $conexao->prepare("INSERT INTO video_imagem (id_video, caminho_imagem, imagem_principal) VALUES (?, ?, 1)");
-                    $stmtImg->bind_param("is", $id_video, $novo_caminho_imagem);
+                    $stmtImg->bind_param("is", $id_video, $url_nova_imagem);
                     $stmtImg->execute();
+                    
+                    $caminho_imagem_final = $url_nova_imagem;
+                } else {
+                    throw new Exception("Falha no upload da imagem para o Cloudinary.");
                 }
             }
             
-            // Atualizar dados do vídeo
+            // --- ATUALIZAR DADOS GERAIS DO VÍDEO ---
+            // Nota: Se a imagem mudou, já atualizamos na tabela video_imagem acima.
+            // Aqui atualizamos video, preco, e o link da prévia.
+            
             $sql_update = "UPDATE video SET nome_video=?, descricao=?, preco=?, duracao=?, caminho_previa=? WHERE id_video=?";
             $stmt_up = $conexao->prepare($sql_update);
-            $stmt_up->bind_param("ssdssi", $nome_video, $descricao, $preco, $duracao, $caminho_previa_atual, $id_video);
+            $stmt_up->bind_param("ssdssi", $nome_video, $descricao, $preco, $duracao, $caminho_previa_final, $id_video);
             $stmt_up->execute();
             
-            // Atualizar categorias
+            // --- ATUALIZAR CATEGORIAS ---
             $conexao->query("DELETE FROM video_categoria WHERE id_video = $id_video");
-            $stmtCat = $conexao->prepare("INSERT INTO video_categoria (id_video, id_categoria) VALUES (?, ?)");
-            foreach ($categorias_selecionadas as $id_categoria) {
-                $stmtCat->bind_param("ii", $id_video, $id_categoria);
-                $stmtCat->execute();
+            
+            if (!empty($categorias_selecionadas)) {
+                $stmtCat = $conexao->prepare("INSERT INTO video_categoria (id_video, id_categoria) VALUES (?, ?)");
+                foreach ($categorias_selecionadas as $id_categoria) {
+                    $stmtCat->bind_param("ii", $id_video, $id_categoria);
+                    $stmtCat->execute();
+                }
             }
             
             $conexao->commit();
@@ -186,13 +199,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $tipo_mensagem = "success";
             $redirecionar = true;
             
-            // Recarregar dados
+            // Recarregar dados para exibir atualizado
             $stmt = $conexao->prepare("SELECT v.*, vi.caminho_imagem FROM video v 
                                       LEFT JOIN video_imagem vi ON v.id_video = vi.id_video AND vi.imagem_principal = 1 
                                       WHERE v.id_video = ?");
             $stmt->bind_param("i", $id_video);
             $stmt->execute();
             $video = $stmt->get_result()->fetch_assoc();
+            
+            // Recarregar categorias
+            $stmtCatAtual->execute();
+            $resCatAtual = $stmtCatAtual->get_result();
+            $categorias_atuais = [];
+            while ($row = $resCatAtual->fetch_assoc()) {
+                $categorias_atuais[] = $row['id_categoria'];
+            }
             
         } catch (Exception $e) {
             $conexao->rollback();
@@ -309,10 +330,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         </div>
       </div>
 
-      <!-- Prévia Atual -->
       <div class="form-group">
         <label>Prévia do Vídeo</label>
-        <?php if ($video['caminho_previa'] && file_exists($video['caminho_previa'])): ?>
+        <?php if (!empty($video['caminho_previa'])): ?>
           <div class="current-file">
             <p>📹 <a href="<?= $video['caminho_previa'] ?>" target="_blank">Ver prévia atual</a></p>
             <video src="<?= $video['caminho_previa'] ?>" controls style="max-width: 400px; border-radius: 8px;"></video>
@@ -331,10 +351,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         </div>
       </div>
 
-      <!-- Imagem Atual -->
       <div class="form-group">
         <label>Imagem de Destaque</label>
-        <?php if ($video['caminho_imagem'] && file_exists($video['caminho_imagem'])): ?>
+        <?php if (!empty($video['caminho_imagem'])): ?>
           <div class="current-file">
             <p>🖼️ <a href="<?= $video['caminho_imagem'] ?>" target="_blank">Ver imagem atual</a></p>
             <img src="<?= $video['caminho_imagem'] ?>" style="max-width: 300px; border-radius: 8px;">
@@ -354,8 +373,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       </div>
 
       <button type="submit" style="background: #27ae60; color: white; padding: 15px 30px; 
-                                    border: none; border-radius: 8px; cursor: pointer; 
-                                    font-size: 1.1em; font-weight: bold;">
+                                   border: none; border-radius: 8px; cursor: pointer; 
+                                   font-size: 1.1em; font-weight: bold;">
         💾 Salvar Alterações
       </button>
     </form>

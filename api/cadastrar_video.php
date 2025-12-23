@@ -1,8 +1,11 @@
 <?php
 // cadastrar_video.php
 include "verifica_login.php";
-include  "conexao.php";
+include "conexao.php";
 include "info_usuario.php";
+
+// INCLUSÃO DA BIBLIOTECA CLOUDINARY
+include "cloudinary_upload.php"; 
 
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Pragma: no-cache");
@@ -45,13 +48,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $conexao->begin_transaction();
         
         try {
-            // Processar prévia do vídeo
-            $dir_previa = "uploads/videos/previas/";
-            if (!is_dir($dir_previa)) mkdir($dir_previa, 0777, true);
-            
-            $ext_previa = pathinfo($arquivo_previa['name'], PATHINFO_EXTENSION);
-            $nome_previa = uniqid("previa_") . "." . strtolower($ext_previa);
-            $caminho_previa = $dir_previa . $nome_previa;
+            // --- UPLOAD DA PRÉVIA (VÍDEO) NO CLOUDINARY ---
             
             $tipos_video_permitidos = ['video/mp4', 'video/webm', 'video/ogg'];
             if (!in_array($arquivo_previa['type'], $tipos_video_permitidos)) {
@@ -61,18 +58,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             if ($arquivo_previa['size'] > 100 * 1024 * 1024) { // 100MB
                 throw new Exception("A prévia é muito grande. Limite: 100MB.");
             }
+
+            // Chama a função do seu arquivo cloudinary_upload.php
+            // Pasta definida como 'videos/previas' para organização no Cloudinary
+            $caminho_previa = uploadToCloudinary($arquivo_previa['tmp_name'], 'videos/previas', 'video');
             
-            if (!move_uploaded_file($arquivo_previa['tmp_name'], $caminho_previa)) {
-                throw new Exception("Erro ao fazer upload da prévia.");
-            }
             
-            // Processar imagem de destaque
-            $dir_imagem = "uploads/videos/imagens/";
-            if (!is_dir($dir_imagem)) mkdir($dir_imagem, 0777, true);
-            
-            $ext_imagem = pathinfo($arquivo_imagem['name'], PATHINFO_EXTENSION);
-            $nome_imagem = uniqid("img_") . "." . strtolower($ext_imagem);
-            $caminho_imagem = $dir_imagem . $nome_imagem;
+            // --- UPLOAD DA IMAGEM NO CLOUDINARY ---
             
             $tipos_imagem_permitidos = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
             if (!in_array($arquivo_imagem['type'], $tipos_imagem_permitidos)) {
@@ -83,13 +75,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 throw new Exception("A imagem é muito grande. Limite: 5MB.");
             }
             
-            if (!move_uploaded_file($arquivo_imagem['tmp_name'], $caminho_imagem)) {
-                throw new Exception("Erro ao fazer upload da imagem.");
-            }
+            // Chama a função para imagem (resource_type = 'image')
+            $caminho_imagem = uploadToCloudinary($arquivo_imagem['tmp_name'], 'videos/imagens', 'image');
+            
+            
+            // --- INSERÇÃO NO BANCO DE DADOS (Mantida idêntica, mas salva a URL) ---
             
             // Inserir vídeo
             $sql_video = "INSERT INTO video (nome_video, descricao, preco, duracao, caminho_previa, id_usuario) 
-                         VALUES (?, ?, ?, ?, ?, ?)";
+                          VALUES (?, ?, ?, ?, ?, ?)";
             $stmt_video = $conexao->prepare($sql_video);
             $stmt_video->bind_param("ssdssi", $nome_video, $descricao, $preco, $duracao, $caminho_previa, $usuario['id_usuario']);
             $stmt_video->execute();
@@ -118,9 +112,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $mensagem = "❌ Erro: " . $e->getMessage();
             $tipo_mensagem = "error";
             
-            // Limpar arquivos se houver erro
-            if (isset($caminho_previa) && file_exists($caminho_previa)) unlink($caminho_previa);
-            if (isset($caminho_imagem) && file_exists($caminho_imagem)) unlink($caminho_imagem);
+            // Observação: Com Cloudinary, não usamos unlink() pois o arquivo não está local.
+            // Se quisesse deletar do Cloudinary em caso de erro no SQL, usaria deleteFromCloudinary aqui.
         }
     }
 }
@@ -232,7 +225,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     </div>
                 </div>
 
-                <!-- Upload Prévia -->
                 <div class="form-group">
                     <label>Prévia do Vídeo * (MP4, WebM ou OGG - Máx: 100MB)</label>
                     <input type="file" name="video_previa" id="video_previa" accept="video/*" class="file-input" required>
@@ -246,7 +238,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     </div>
                 </div>
 
-                <!-- Upload Imagem -->
                 <div class="form-group">
                     <label>Imagem de Destaque * (JPG, PNG ou WebP - Máx: 5MB)</label>
                     <input type="file" name="imagem_destaque" id="imagem_destaque" accept="image/*" class="file-input" required>
