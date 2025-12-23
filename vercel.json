@@ -1,15 +1,49 @@
 {
+  "version": 2,
   "functions": {
-    "api/*.php": {
-      "runtime": "vercel-php@0.7.1"
+    "api/**/*.php": {
+      "runtime": "vercel-php@0.7.1",
+      "maxDuration": 60
     }
   },
   "routes": [
-    { "src": "/css/(.*)", "dest": "/css/$1" },
-    { "src": "/js/(.*)", "dest": "/js/$1" },
-    { "src": "/icones/(.*)", "dest": "/icones/$1" },
-    { "src": "/uploads/(.*)", "dest": "/uploads/$1" },
-    { "src": "/", "dest": "/api/index.php" },
-    { "src": "/(.*)", "dest": "/api/$1" }
-  ]
+    {
+      "src": "/css/(.*)",
+      "dest": "/css/$1"
+    },
+    {
+      "src": "/js/(.*)",
+      "dest": "/js/$1"
+    },
+    {
+      "src": "/icones/(.*)",
+      "dest": "/icones/$1"
+    },
+    {
+      "src": "/uploads/(.*)",
+      "dest": "/uploads/$1"
+    },
+    {
+      "src": "/(cadastrar_video|editar_video)\\.php(.*)",
+      "dest": "/api/$1.php$2",
+      "methods": ["GET", "POST"]
+    },
+    {
+      "src": "/",
+      "dest": "/api/index.php"
+    },
+    {
+      "src": "/(.*)\\.php(.*)",
+      "dest": "/api/$1.php$2"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/api/$1"
+    }
+  ],
+  "env": {
+    "PHP_UPLOAD_MAX_FILESIZE": "100M",
+    "PHP_POST_MAX_SIZE": "100M",
+    "PHP_MEMORY_LIMIT": "512M"
+  }
 }
