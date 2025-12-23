@@ -1,4 +1,14 @@
 <?php
+// Headers para Vercel
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type");
+
+// Se for requisição OPTIONS, retorna 200
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
 // api/editar_video.php
 include "verifica_login.php";
 include "conexao.php";
