@@ -1,4 +1,8 @@
 <?php
+// verifica_login.php - Para páginas PRIVADAS (login obrigatório)
+// Este arquivo redireciona para login se não estiver autenticado
+// Também pode verificar se é administrador
+
 // ==================== CONFIGURAÇÃO DE SESSÃO CORRIGIDA ====================
 
 // 1. Configuração do Caminho (CRUCIAL PARA VERCEL)
