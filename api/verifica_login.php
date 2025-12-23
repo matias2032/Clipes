@@ -1,28 +1,30 @@
 <?php
 // verifica_login.php - Para páginas PRIVADAS (login obrigatório)
 // Este arquivo redireciona para login se não estiver autenticado
-// Também pode verificar se é administrador
+// VERSÃO OTIMIZADA PARA VERCEL COM SESSÕES NO MySQL
 
-// ==================== CONFIGURAÇÃO DE SESSÃO CORRIGIDA ====================
+// ==================== INCLUIR DEPENDÊNCIAS ====================
+require_once  "conexao.php"; // Sua conexão MySQL existente
+require_once "sessao_handler_db.php"; // Handler customizado
 
-// 1. Configuração do Caminho (CRUCIAL PARA VERCEL)
-// Define que o cookie vale para todo o domínio, corrigindo o problema da rota /api/
-$cookieParams = session_get_cookie_params();
+// ==================== CONFIGURAR HANDLER CUSTOMIZADO ====================
+$handler = new SessionHandlerDB($conexao);
+session_set_save_handler($handler, true);
+
+// ==================== CONFIGURAÇÃO DE COOKIES ====================
 session_set_cookie_params([
-    'lifetime' => 86400, // 24 horas
-    'path'     => '/',   // Força o cookie a funcionar na raiz, não só em /api
-    'domain'   => $_SERVER['HTTP_HOST'], // Opcional, mas ajuda
-    'secure'   => true,  // Vercel é sempre HTTPS
-    'httponly' => true,
-    'samesite' => 'None' // Necessário para cookies cross-site/api
+    'lifetime' => 86400,    // 24 horas
+    'path'     => '/',      // Cookie válido em todo o site
+    'domain'   => '',       // Deixa PHP detectar automaticamente
+    'secure'   => true,     // HTTPS obrigatório (Vercel sempre usa HTTPS)
+    'httponly' => true,     // Proteção contra XSS
+    'samesite' => 'Lax'     // Lax para navegação normal no mesmo site
 ]);
 
-// 2. Configuração do Local de Salvamento
-// Nota: /tmp funciona, mas em serverless os dados podem sumir se a instância reiniciar.
-// Para produção séria na Vercel, recomenda-se usar Redis ou Banco de Dados para sessões.
-session_save_path('/tmp'); 
+// ==================== NOME DA SESSÃO (opcional, mas recomendado) ====================
+session_name('CLIPES_SESSION'); // Nome único para sua aplicação
 
-// 3. Início da Sessão
+// ==================== INICIAR SESSÃO ====================
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
