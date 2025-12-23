@@ -1,4 +1,6 @@
 <?php
+// verifica_login_opcional.php - Para páginas PÚBLICAS (login opcional)
+// Este arquivo inicia sessão mas NÃO redireciona
 
 // ==================== CONFIGURAÇÃO DE SESSÃO CORRIGIDA ====================
 
