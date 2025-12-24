@@ -57,4 +57,5 @@
     "PHP_INI_MEMORY_LIMIT": "256M",
     "PHP_INI_MAX_EXECUTION_TIME": "60"
   }
+
 }
