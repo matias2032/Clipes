@@ -1,24 +1,26 @@
 <?php
-// Headers CORS - DEVE SER A PRIMEIRA COISA NO ARQUIVO
+// INICIAR OUTPUT BUFFERING ANTES DE QUALQUER SAÍDA
+ob_start();
+
+// Iniciar sessão e includes ANTES dos headers
+include "verifica_login.php";
+include "conexao.php";
+include "info_usuario.php";
+include "vercel_blob_upload.php";
+
+// AGORA SIM enviar headers (após includes que podem iniciar sessão)
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Content-Type: text/html; charset=UTF-8");
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Pragma: no-cache");
 
 // Responder OPTIONS e encerrar
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
-
-// Continuar com o resto do código apenas se não for OPTIONS
-include "verifica_login.php";
-include "conexao.php";
-include "info_usuario.php";
-include "vercel_blob_upload.php"; // ← MUDANÇA: usar Vercel Blob em vez de Cloudinary
-
-header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
-header("Pragma: no-cache");
 
 if (!isset($_SESSION['usuario'])) {
     header("Location: login.php");
@@ -135,6 +137,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 }
+
+// Limpar buffer e enviar saída
+ob_end_flush();
 ?>
 
 <!DOCTYPE html>
