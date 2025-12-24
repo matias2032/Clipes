@@ -1,14 +1,16 @@
 <?php
-// INICIAR OUTPUT BUFFERING ANTES DE QUALQUER SAÍDA
-ob_start();
+/**
+ * editar_video.php
+ * VERSÃO FINAL - CORRIGIDA PARA VERCEL
+ */
 
-// Iniciar sessão e includes ANTES dos headers
-include "verifica_login.php";
+// NÃO iniciar ob_start() aqui - verifica_login.php já faz isso
+include "verifica_login.php"; // Já tem ob_start() interno
 include "conexao.php";
 include "info_usuario.php";
 include "vercel_blob_upload.php";
 
-// AGORA SIM enviar headers (após includes que podem iniciar sessão)
+// Agora sim enviar headers (após todas as inclusões)
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
@@ -16,12 +18,13 @@ header("Content-Type: text/html; charset=UTF-8");
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Pragma: no-cache");
 
-// Responder OPTIONS e encerrar
+// Responder OPTIONS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
 
+// Verificação de sessão
 if (!isset($_SESSION['usuario'])) {
     header("Location: login.php");
     exit;
@@ -82,7 +85,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $remover_previa = isset($_POST['remover_previa']);
     $remover_imagem = isset($_POST['remover_imagem']);
     
-    // Receber Base64
     $nova_previa_base64 = $_POST['video_previa_base64'] ?? '';
     $nova_imagem_base64 = $_POST['imagem_base64'] ?? '';
     
@@ -106,7 +108,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $conexao->begin_transaction();
         
         try {
-            // Verificar configuração do Vercel Blob
             if (!isVercelBlobConfigured()) {
                 throw new Exception("Vercel Blob não configurado. Adicione BLOB_READ_WRITE_TOKEN nas variáveis de ambiente.");
             }
@@ -114,7 +115,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $caminho_previa_final = $video['caminho_previa'];
             $caminho_imagem_final = $video['caminho_imagem'];
             
-            // PRÉVIA - Remover arquivo antigo se houver substituição
             if ($remover_previa) {
                 if (!empty($video['caminho_previa'])) {
                     try {
@@ -127,7 +127,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
             
             if (!empty($nova_previa_base64)) {
-                // Validar tipo e tamanho
                 $videoMimeType = detectMimeTypeFromBase64($nova_previa_base64);
                 $videoSize = getBase64FileSize($nova_previa_base64);
                 
@@ -139,7 +138,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     throw new Exception("Vídeo muito grande. Máximo: 100MB (atual: " . formatFileSize($videoSize) . ")");
                 }
                 
-                // Remover prévia antiga se existir
                 if (!empty($video['caminho_previa'])) {
                     try {
                         deleteFromVercelBlob($video['caminho_previa']);
@@ -148,7 +146,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     }
                 }
                 
-                // Upload nova prévia
                 $videoFilename = generateSafeFilename('preview.mp4', 'video');
                 $url_novo_video = uploadToVercelBlobBase64($nova_previa_base64, $videoFilename, $videoMimeType);
                 
@@ -159,7 +156,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 }
             }
             
-            // IMAGEM - Remover se solicitado
             if ($remover_imagem) {
                 if (!empty($video['caminho_imagem'])) {
                     try {
@@ -173,7 +169,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
             
             if (!empty($nova_imagem_base64)) {
-                // Validar tipo e tamanho
                 $imageMimeType = detectMimeTypeFromBase64($nova_imagem_base64);
                 $imageSize = getBase64FileSize($nova_imagem_base64);
                 
@@ -185,7 +180,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     throw new Exception("Imagem muito grande. Máximo: 5MB (atual: " . formatFileSize($imageSize) . ")");
                 }
                 
-                // Remover imagem antiga se existir
                 if (!empty($video['caminho_imagem'])) {
                     try {
                         deleteFromVercelBlob($video['caminho_imagem']);
@@ -194,7 +188,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     }
                 }
                 
-                // Upload nova imagem
                 $imageFilename = generateSafeFilename('thumbnail.jpg', 'image');
                 $url_nova_imagem = uploadToVercelBlobBase64($nova_imagem_base64, $imageFilename, $imageMimeType);
                 
@@ -209,13 +202,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 }
             }
             
-            // Atualizar vídeo
             $sql_update = "UPDATE video SET nome_video=?, descricao=?, preco=?, duracao=?, caminho_previa=? WHERE id_video=?";
             $stmt_up = $conexao->prepare($sql_update);
             $stmt_up->bind_param("ssdssi", $nome_video, $descricao, $preco, $duracao, $caminho_previa_final, $id_video);
             $stmt_up->execute();
             
-            // Atualizar categorias
             $conexao->query("DELETE FROM video_categoria WHERE id_video = $id_video");
             if (!empty($categorias_selecionadas)) {
                 $stmtCat = $conexao->prepare("INSERT INTO video_categoria (id_video, id_categoria) VALUES (?, ?)");
@@ -244,14 +235,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $conexao->rollback();
             $mensagem = "❌ Erro: " . $e->getMessage();
             $tipo_mensagem = "error";
-            
-            // Log do erro para debug
             error_log("Erro ao editar vídeo: " . $e->getMessage());
         }
     }
 }
 
-// Limpar buffer e enviar saída
+// Limpar e enviar buffer
 ob_end_flush();
 ?>
 

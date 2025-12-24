@@ -1,14 +1,16 @@
 <?php
-// INICIAR OUTPUT BUFFERING ANTES DE QUALQUER SAÍDA
-ob_start();
+/**
+ * cadastrar_video.php
+ * VERSÃO FINAL - CORRIGIDA PARA VERCEL
+ */
 
-// Iniciar sessão e includes ANTES dos headers
-include "verifica_login.php";
+// NÃO iniciar ob_start() aqui - verifica_login.php já faz isso
+include "verifica_login.php"; // Já tem ob_start() interno
 include "conexao.php";
 include "info_usuario.php";
 include "vercel_blob_upload.php";
 
-// AGORA SIM enviar headers (após includes que podem iniciar sessão)
+// Agora sim enviar headers (após todas as inclusões)
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
@@ -16,12 +18,13 @@ header("Content-Type: text/html; charset=UTF-8");
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Pragma: no-cache");
 
-// Responder OPTIONS e encerrar
+// Responder OPTIONS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
 
+// Verificação de sessão (redundante, mas segura)
 if (!isset($_SESSION['usuario'])) {
     header("Location: login.php");
     exit;
@@ -43,11 +46,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $duracao = trim($_POST['duracao'] ?? '');
     $categorias_selecionadas = $_POST['categorias'] ?? [];
     
-    // Receber dados em Base64
     $previa_base64 = $_POST['video_previa_base64'] ?? '';
     $imagem_base64 = $_POST['imagem_base64'] ?? '';
     
-    // Validação
     if (empty($nome_video) || empty($categorias_selecionadas)) {
         $mensagem = "⚠️ Nome do vídeo e pelo menos uma categoria são obrigatórios.";
         $tipo_mensagem = "error";
@@ -61,16 +62,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $conexao->begin_transaction();
         
         try {
-            // Verificar configuração do Vercel Blob
             if (!isVercelBlobConfigured()) {
                 throw new Exception("Vercel Blob não configurado. Adicione BLOB_READ_WRITE_TOKEN nas variáveis de ambiente.");
             }
             
-            // Detectar tipos MIME
             $videoMimeType = detectMimeTypeFromBase64($previa_base64);
             $imageMimeType = detectMimeTypeFromBase64($imagem_base64);
             
-            // Validar tipos de arquivo
             if (!isValidVideo($videoMimeType)) {
                 throw new Exception("Formato de vídeo não permitido. Use MP4, WebM ou OGG.");
             }
@@ -79,29 +77,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 throw new Exception("Formato de imagem não permitido. Use JPG, PNG ou WebP.");
             }
             
-            // Validar tamanhos
             $videoSize = getBase64FileSize($previa_base64);
             $imageSize = getBase64FileSize($imagem_base64);
             
-            if ($videoSize > 100 * 1024 * 1024) { // 100MB
+            if ($videoSize > 100 * 1024 * 1024) {
                 throw new Exception("Vídeo muito grande. Máximo: 100MB (atual: " . formatFileSize($videoSize) . ")");
             }
             
-            if ($imageSize > 5 * 1024 * 1024) { // 5MB
+            if ($imageSize > 5 * 1024 * 1024) {
                 throw new Exception("Imagem muito grande. Máximo: 5MB (atual: " . formatFileSize($imageSize) . ")");
             }
             
-            // Gerar nomes de arquivo únicos
             $videoFilename = generateSafeFilename('preview.mp4', 'video');
             $imageFilename = generateSafeFilename('thumbnail.jpg', 'image');
             
-            // Upload da prévia para Vercel Blob
             $caminho_previa = uploadToVercelBlobBase64($previa_base64, $videoFilename, $videoMimeType);
-            
-            // Upload da imagem para Vercel Blob
             $caminho_imagem = uploadToVercelBlobBase64($imagem_base64, $imageFilename, $imageMimeType);
             
-            // Inserir vídeo
             $sql_video = "INSERT INTO video (nome_video, descricao, preco, duracao, caminho_previa, id_usuario) 
                           VALUES (?, ?, ?, ?, ?, ?)";
             $stmt_video = $conexao->prepare($sql_video);
@@ -109,14 +101,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $stmt_video->execute();
             $id_video = $stmt_video->insert_id;
             
-            // Inserir categorias
             $stmt_cat = $conexao->prepare("INSERT INTO video_categoria (id_video, id_categoria) VALUES (?, ?)");
             foreach ($categorias_selecionadas as $id_categoria) {
                 $stmt_cat->bind_param("ii", $id_video, $id_categoria);
                 $stmt_cat->execute();
             }
             
-            // Inserir imagem
             $stmt_img = $conexao->prepare("INSERT INTO video_imagem (id_video, caminho_imagem, imagem_principal) VALUES (?, ?, 1)");
             $stmt_img->bind_param("is", $id_video, $caminho_imagem);
             $stmt_img->execute();
@@ -131,14 +121,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $conexao->rollback();
             $mensagem = "❌ Erro: " . $e->getMessage();
             $tipo_mensagem = "error";
-            
-            // Log do erro para debug
             error_log("Erro ao cadastrar vídeo: " . $e->getMessage());
         }
     }
 }
 
-// Limpar buffer e enviar saída
+// Limpar e enviar buffer
 ob_end_flush();
 ?>
 
@@ -304,10 +292,7 @@ ob_end_flush();
     <?php endif; ?>
 
     <script>
-        // Drag and Drop para Prévia
         setupDropZone('dropZonePrevia', 'video_previa', 'fileNamePrevia', 'fileInfoPrevia', 'previewPrevia', 'video', 'video_previa_base64', 'progressPrevia');
-        
-        // Drag and Drop para Imagem
         setupDropZone('dropZoneImagem', 'imagem_destaque', 'fileNameImagem', 'fileInfoImagem', 'previewImagem', 'image', 'imagem_base64', 'progressImagem');
 
         function setupDropZone(dropZoneId, inputId, fileNameId, fileInfoId, previewId, type, hiddenInputId, progressId) {
@@ -358,7 +343,6 @@ ob_end_flush();
                 const base64Data = e.target.result;
                 hiddenInput.value = base64Data;
                 
-                // Mostrar preview
                 previewContainer.innerHTML = '';
                 if (type === 'video') {
                     const video = document.createElement('video');
@@ -393,7 +377,6 @@ ob_end_flush();
             return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
         }
 
-        // Validação do formulário
         document.getElementById('formCadastro').addEventListener('submit', function(e) {
             const videoBase64 = document.getElementById('video_previa_base64').value;
             const imagemBase64 = document.getElementById('imagem_base64').value;
