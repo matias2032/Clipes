@@ -1,15 +1,17 @@
 <?php
-// Headers para Vercel
+// Headers CORS - DEVE SER A PRIMEIRA COISA NO ARQUIVO
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+header("Content-Type: text/html; charset=UTF-8");
 
-// Se for requisição OPTIONS, retorna 200
+// Responder OPTIONS e encerrar
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
-// api/cadastrar_video.php
+
+// Continuar com o resto do código apenas se não for OPTIONS
 include "verifica_login.php";
 include "conexao.php";
 include "info_usuario.php";
@@ -57,6 +59,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $conexao->begin_transaction();
         
         try {
+            // Verificar credenciais Cloudinary
+            if (!getenv('CLOUDINARY_CLOUD_NAME') || !getenv('CLOUDINARY_API_KEY') || !getenv('CLOUDINARY_API_SECRET')) {
+                throw new Exception("Credenciais do Cloudinary não configuradas. Verifique as variáveis de ambiente.");
+            }
+            
             // Upload da prévia para Cloudinary
             $caminho_previa = uploadToCloudinaryBase64($previa_base64, 'videos/previas', 'video');
             
@@ -93,6 +100,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $conexao->rollback();
             $mensagem = "❌ Erro: " . $e->getMessage();
             $tipo_mensagem = "error";
+            
+            // Log do erro para debug
+            error_log("Erro ao cadastrar vídeo: " . $e->getMessage());
         }
     }
 }

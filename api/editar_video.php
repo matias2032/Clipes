@@ -1,15 +1,17 @@
 <?php
-// Headers para Vercel
+// Headers CORS - DEVE SER A PRIMEIRA COISA NO ARQUIVO
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+header("Content-Type: text/html; charset=UTF-8");
 
-// Se for requisição OPTIONS, retorna 200
+// Responder OPTIONS e encerrar
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
-// api/editar_video.php
+
+// Continuar com o resto do código apenas se não for OPTIONS
 include "verifica_login.php";
 include "conexao.php";
 include "info_usuario.php";
@@ -102,6 +104,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $conexao->begin_transaction();
         
         try {
+            // Verificar credenciais Cloudinary
+            if (!getenv('CLOUDINARY_CLOUD_NAME') || !getenv('CLOUDINARY_API_KEY') || !getenv('CLOUDINARY_API_SECRET')) {
+                throw new Exception("Credenciais do Cloudinary não configuradas. Verifique as variáveis de ambiente.");
+            }
+            
             $caminho_previa_final = $video['caminho_previa'];
             $caminho_imagem_final = $video['caminho_imagem'];
             
@@ -173,6 +180,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $conexao->rollback();
             $mensagem = "❌ Erro: " . $e->getMessage();
             $tipo_mensagem = "error";
+            
+            // Log do erro para debug
+            error_log("Erro ao editar vídeo: " . $e->getMessage());
         }
     }
 }
@@ -194,6 +204,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 .drop-zone.drag-over { background-color: #d0e7f7; border-color: #2980b9; }
 .file-input { display: none; }
 .file-name { font-weight: bold; color: #27ae60; margin-top: 10px; }
+.form-group { margin-bottom: 15px; }
+.form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
 .checkbox-group { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
 .checkbox-item { display: flex; align-items: center; gap: 8px; }
 .preview-container { margin-top: 15px; }
@@ -376,6 +388,7 @@ function handleFile(file, nameDisplay, previewContainer, type, hiddenInput, prog
     progressDiv.textContent = 'Processando arquivo...';
     
     const reader = new FileReader();
+    
     reader.onload = function(e) {
         hiddenInput.value = e.target.result;
         previewContainer.innerHTML = '';
@@ -395,6 +408,11 @@ function handleFile(file, nameDisplay, previewContainer, type, hiddenInput, prog
         
         progressDiv.textContent = '✅ Arquivo pronto para envio';
         setTimeout(() => { progressDiv.style.display = 'none'; }, 2000);
+    };
+    
+    reader.onerror = function() {
+        progressDiv.textContent = '❌ Erro ao processar arquivo';
+        progressDiv.style.background = '#ffebee';
     };
     
     reader.readAsDataURL(file);
