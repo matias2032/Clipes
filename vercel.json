@@ -24,6 +24,11 @@
       "dest": "/uploads/$1"
     },
     {
+      "src": "/api/get_upload_url.php",
+      "dest": "/api/get_upload_url.php",
+      "methods": ["POST", "OPTIONS"]
+    },
+    {
       "src": "/api/cadastrar_video.php",
       "dest": "/api/cadastrar_video.php",
       "methods": ["GET", "POST", "OPTIONS"]
@@ -31,11 +36,6 @@
     {
       "src": "/api/editar_video.php",
       "dest": "/api/editar_video.php",
-      "methods": ["GET", "POST", "OPTIONS"]
-    },
-    {
-      "src": "/api/vercel_blob_upload.php",
-      "dest": "/api/vercel_blob_upload.php",
       "methods": ["GET", "POST", "OPTIONS"]
     },
     {
@@ -54,9 +54,7 @@
     }
   ],
   "env": {
-    "PHP_INI_UPLOAD_MAX_FILESIZE": "100M",
-    "PHP_INI_POST_MAX_SIZE": "100M",
-    "PHP_INI_MEMORY_LIMIT": "512M",
-    "PHP_INI_MAX_EXECUTION_TIME": "300"
+    "PHP_INI_MEMORY_LIMIT": "256M",
+    "PHP_INI_MAX_EXECUTION_TIME": "60"
   }
 }
