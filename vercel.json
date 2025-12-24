@@ -19,6 +19,7 @@
       "src": "/icones/(.*)",
       "dest": "/icones/$1"
     },
+    
     {
       "src": "/uploads/(.*)",
       "dest": "/uploads/$1"
@@ -63,3 +64,4 @@
     }
   ]
 }
+
