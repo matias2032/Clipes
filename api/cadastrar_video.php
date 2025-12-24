@@ -1,16 +1,13 @@
 <?php
 /**
  * cadastrar_video.php
- * VERSÃO FINAL - CORRIGIDA PARA VERCEL
+ * VERSÃO CLIENT-SIDE UPLOAD
  */
 
-// NÃO iniciar ob_start() aqui - verifica_login.php já faz isso
-include "verifica_login.php"; // Já tem ob_start() interno
+include "verifica_login.php";
 include "conexao.php";
 include "info_usuario.php";
-include "vercel_blob_upload.php";
 
-// Agora sim enviar headers (após todas as inclusões)
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
@@ -18,25 +15,21 @@ header("Content-Type: text/html; charset=UTF-8");
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Pragma: no-cache");
 
-// Responder OPTIONS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
 
-// Verificação de sessão (redundante, mas segura)
 if (!isset($_SESSION['usuario'])) {
     header("Location: login.php");
     exit;
 }
 
 $usuario = $_SESSION['usuario'];
-$id_perfil = $usuario['id_perfil'] ?? null;
 $mensagem = "";
 $tipo_mensagem = "info";
 $redirecionar = false;
 
-// Carregar categorias
 $categorias = $conexao->query("SELECT id_categoria, nome_categoria FROM categoria ORDER BY nome_categoria");
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -46,54 +39,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $duracao = trim($_POST['duracao'] ?? '');
     $categorias_selecionadas = $_POST['categorias'] ?? [];
     
-    $previa_base64 = $_POST['video_previa_base64'] ?? '';
-    $imagem_base64 = $_POST['imagem_base64'] ?? '';
+    // URLs dos arquivos já carregados no Vercel Blob
+    $caminho_previa = trim($_POST['video_url'] ?? '');
+    $caminho_imagem = trim($_POST['imagem_url'] ?? '');
     
     if (empty($nome_video) || empty($categorias_selecionadas)) {
         $mensagem = "⚠️ Nome do vídeo e pelo menos uma categoria são obrigatórios.";
         $tipo_mensagem = "error";
-    } elseif (empty($previa_base64)) {
+    } elseif (empty($caminho_previa)) {
         $mensagem = "⚠️ A prévia do vídeo é obrigatória.";
         $tipo_mensagem = "error";
-    } elseif (empty($imagem_base64)) {
+    } elseif (empty($caminho_imagem)) {
         $mensagem = "⚠️ A imagem de destaque é obrigatória.";
         $tipo_mensagem = "error";
     } else {
         $conexao->begin_transaction();
         
         try {
-            if (!isVercelBlobConfigured()) {
-                throw new Exception("Vercel Blob não configurado. Adicione BLOB_READ_WRITE_TOKEN nas variáveis de ambiente.");
-            }
-            
-            $videoMimeType = detectMimeTypeFromBase64($previa_base64);
-            $imageMimeType = detectMimeTypeFromBase64($imagem_base64);
-            
-            if (!isValidVideo($videoMimeType)) {
-                throw new Exception("Formato de vídeo não permitido. Use MP4, WebM ou OGG.");
-            }
-            
-            if (!isValidImage($imageMimeType)) {
-                throw new Exception("Formato de imagem não permitido. Use JPG, PNG ou WebP.");
-            }
-            
-            $videoSize = getBase64FileSize($previa_base64);
-            $imageSize = getBase64FileSize($imagem_base64);
-            
-            if ($videoSize > 100 * 1024 * 1024) {
-                throw new Exception("Vídeo muito grande. Máximo: 100MB (atual: " . formatFileSize($videoSize) . ")");
-            }
-            
-            if ($imageSize > 5 * 1024 * 1024) {
-                throw new Exception("Imagem muito grande. Máximo: 5MB (atual: " . formatFileSize($imageSize) . ")");
-            }
-            
-            $videoFilename = generateSafeFilename('preview.mp4', 'video');
-            $imageFilename = generateSafeFilename('thumbnail.jpg', 'image');
-            
-            $caminho_previa = uploadToVercelBlobBase64($previa_base64, $videoFilename, $videoMimeType);
-            $caminho_imagem = uploadToVercelBlobBase64($imagem_base64, $imageFilename, $imageMimeType);
-            
             $sql_video = "INSERT INTO video (nome_video, descricao, preco, duracao, caminho_previa, id_usuario) 
                           VALUES (?, ?, ?, ?, ?, ?)";
             $stmt_video = $conexao->prepare($sql_video);
@@ -126,7 +88,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
-// Limpar e enviar buffer
 ob_end_flush();
 ?>
 
@@ -148,7 +109,9 @@ ob_end_flush();
             background-color: #ecf0f1; transition: all 0.3s;
         }
         .drop-zone.drag-over { background-color: #d0e7f7; border-color: #2980b9; }
-        .drop-zone-text { color: #7f8c8d; font-size: 1.1em; margin-bottom: 10px; }
+        .drop-zone.uploading { background-color: #fff3cd; border-color: #ffc107; }
+        .drop-zone.success { background-color: #d4edda; border-color: #28a745; }
+        .drop-zone.error { background-color: #f8d7da; border-color: #dc3545; }
         .file-input { display: none; }
         .file-name { font-weight: bold; color: #27ae60; margin-top: 10px; }
         .form-group { margin-bottom: 15px; }
@@ -156,20 +119,34 @@ ob_end_flush();
         .checkbox-group { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
         .checkbox-item { display: flex; align-items: center; gap: 8px; }
         .preview-container { margin-top: 15px; }
-        .preview-container img { max-width: 300px; border-radius: 8px; }
-        .preview-container video { max-width: 500px; border-radius: 8px; }
+        .preview-container img, .preview-container video { max-width: 100%; border-radius: 8px; }
         .upload-progress {
-            display: none;
             margin-top: 10px;
             padding: 10px;
             background: #e8f5e9;
             border-radius: 5px;
+            font-weight: bold;
         }
-        .file-info {
-            font-size: 0.9em;
-            color: #666;
-            margin-top: 5px;
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 10px;
         }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4caf50, #8bc34a);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .file-info { font-size: 0.9em; color: #666; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -214,8 +191,8 @@ ob_end_flush();
 
             <form method="post" action="" id="formCadastro" class="form-container">
                 
-                <input type="hidden" name="video_previa_base64" id="video_previa_base64">
-                <input type="hidden" name="imagem_base64" id="imagem_base64">
+                <input type="hidden" name="video_url" id="video_url">
+                <input type="hidden" name="imagem_url" id="imagem_url">
                 
                 <div class="form-group">
                     <label for="nome_video">Nome do Vídeo *</label>
@@ -260,8 +237,11 @@ ob_end_flush();
                         </button>
                         <p class="file-name" id="fileNamePrevia"></p>
                         <p class="file-info" id="fileInfoPrevia"></p>
+                        <div class="upload-progress" id="progressPrevia" style="display:none;"></div>
+                        <div class="progress-bar" id="progressBarPrevia" style="display:none;">
+                            <div class="progress-fill" id="progressFillPrevia">0%</div>
+                        </div>
                         <div class="preview-container" id="previewPrevia"></div>
-                        <div class="upload-progress" id="progressPrevia"></div>
                     </div>
                 </div>
 
@@ -275,8 +255,11 @@ ob_end_flush();
                         </button>
                         <p class="file-name" id="fileNameImagem"></p>
                         <p class="file-info" id="fileInfoImagem"></p>
+                        <div class="upload-progress" id="progressImagem" style="display:none;"></div>
+                        <div class="progress-bar" id="progressBarImagem" style="display:none;">
+                            <div class="progress-fill" id="progressFillImagem">0%</div>
+                        </div>
                         <div class="preview-container" id="previewImagem"></div>
-                        <div class="upload-progress" id="progressImagem"></div>
                     </div>
                 </div>
 
@@ -292,17 +275,19 @@ ob_end_flush();
     <?php endif; ?>
 
     <script>
-        setupDropZone('dropZonePrevia', 'video_previa', 'fileNamePrevia', 'fileInfoPrevia', 'previewPrevia', 'video', 'video_previa_base64', 'progressPrevia');
-        setupDropZone('dropZoneImagem', 'imagem_destaque', 'fileNameImagem', 'fileInfoImagem', 'previewImagem', 'image', 'imagem_base64', 'progressImagem');
+        setupDropZone('dropZonePrevia', 'video_previa', 'fileNamePrevia', 'fileInfoPrevia', 'previewPrevia', 'video', 'video_url', 'progressPrevia', 'progressBarPrevia', 'progressFillPrevia');
+        setupDropZone('dropZoneImagem', 'imagem_destaque', 'fileNameImagem', 'fileInfoImagem', 'previewImagem', 'image', 'imagem_url', 'progressImagem', 'progressBarImagem', 'progressFillImagem');
 
-        function setupDropZone(dropZoneId, inputId, fileNameId, fileInfoId, previewId, type, hiddenInputId, progressId) {
+        function setupDropZone(dropZoneId, inputId, fileNameId, fileInfoId, previewId, type, urlInputId, progressId, progressBarId, progressFillId) {
             const dropZone = document.getElementById(dropZoneId);
             const fileInput = document.getElementById(inputId);
             const fileNameDisplay = document.getElementById(fileNameId);
             const fileInfoDisplay = document.getElementById(fileInfoId);
             const previewContainer = document.getElementById(previewId);
-            const hiddenInput = document.getElementById(hiddenInputId);
+            const urlInput = document.getElementById(urlInputId);
             const progressDiv = document.getElementById(progressId);
+            const progressBar = document.getElementById(progressBarId);
+            const progressFill = document.getElementById(progressFillId);
 
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
                 dropZone.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
@@ -320,53 +305,103 @@ ob_end_flush();
                 const files = e.dataTransfer.files;
                 if (files.length > 0) {
                     fileInput.files = files;
-                    handleFile(files[0], fileNameDisplay, fileInfoDisplay, previewContainer, type, hiddenInput, progressDiv);
+                    handleFileClientUpload(files[0], fileNameDisplay, fileInfoDisplay, previewContainer, type, urlInput, progressDiv, progressBar, progressFill, dropZone);
                 }
             });
 
             fileInput.addEventListener('change', () => {
                 if (fileInput.files.length > 0) {
-                    handleFile(fileInput.files[0], fileNameDisplay, fileInfoDisplay, previewContainer, type, hiddenInput, progressDiv);
+                    handleFileClientUpload(fileInput.files[0], fileNameDisplay, fileInfoDisplay, previewContainer, type, urlInput, progressDiv, progressBar, progressFill, dropZone);
                 }
             });
         }
 
-        function handleFile(file, nameDisplay, infoDisplay, previewContainer, type, hiddenInput, progressDiv) {
+        async function handleFileClientUpload(file, nameDisplay, infoDisplay, previewContainer, type, urlInput, progressDiv, progressBar, progressFill, dropZone) {
             nameDisplay.textContent = `📁 ${file.name}`;
             infoDisplay.textContent = `Tamanho: ${formatFileSize(file.size)} | Tipo: ${file.type}`;
+            
+            dropZone.classList.add('uploading');
             progressDiv.style.display = 'block';
-            progressDiv.textContent = 'Processando arquivo...';
-            
-            const reader = new FileReader();
-            
-            reader.onload = function(e) {
-                const base64Data = e.target.result;
-                hiddenInput.value = base64Data;
+            progressBar.style.display = 'block';
+            progressDiv.textContent = '🔄 Preparando upload...';
+            progressFill.style.width = '10%';
+            progressFill.textContent = '10%';
+
+            try {
+                // 1. Obter URL de upload
+                const response = await fetch('get_upload_url.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        filename: file.name,
+                        contentType: file.type
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Erro ao obter URL de upload');
+                }
+
+                const { uploadUrl, token, publicUrl } = await response.json();
                 
+                progressFill.style.width = '30%';
+                progressFill.textContent = '30%';
+                progressDiv.textContent = '📤 Enviando para Vercel Blob...';
+
+                // 2. Upload direto para Vercel Blob
+                const uploadResponse = await fetch(uploadUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': file.type,
+                        'x-content-type': file.type
+                    },
+                    body: file
+                });
+
+                if (!uploadResponse.ok) {
+                    throw new Error(`Upload falhou: ${uploadResponse.status}`);
+                }
+
+                const result = await uploadResponse.json();
+                
+                progressFill.style.width = '100%';
+                progressFill.textContent = '100%';
+                
+                // Armazenar URL retornada
+                urlInput.value = result.url || publicUrl;
+                
+                dropZone.classList.remove('uploading');
+                dropZone.classList.add('success');
+                progressDiv.textContent = '✅ Upload concluído!';
+
+                // Preview
                 previewContainer.innerHTML = '';
                 if (type === 'video') {
                     const video = document.createElement('video');
-                    video.src = base64Data;
+                    video.src = URL.createObjectURL(file);
                     video.controls = true;
                     video.style.maxWidth = '100%';
                     previewContainer.appendChild(video);
                 } else if (type === 'image') {
                     const img = document.createElement('img');
-                    img.src = base64Data;
+                    img.src = URL.createObjectURL(file);
                     img.style.maxWidth = '100%';
                     previewContainer.appendChild(img);
                 }
+
+                setTimeout(() => {
+                    progressBar.style.display = 'none';
+                    progressDiv.style.display = 'none';
+                }, 3000);
                 
-                progressDiv.textContent = '✅ Arquivo pronto para envio ao Vercel Blob';
-                setTimeout(() => { progressDiv.style.display = 'none'; }, 2000);
-            };
-            
-            reader.onerror = function() {
-                progressDiv.textContent = '❌ Erro ao processar arquivo';
+            } catch (error) {
+                dropZone.classList.remove('uploading');
+                dropZone.classList.add('error');
+                progressDiv.textContent = `❌ Erro: ${error.message}`;
                 progressDiv.style.background = '#ffebee';
-            };
-            
-            reader.readAsDataURL(file);
+                console.error('Erro no upload:', error);
+            }
         }
 
         function formatFileSize(bytes) {
@@ -378,17 +413,17 @@ ob_end_flush();
         }
 
         document.getElementById('formCadastro').addEventListener('submit', function(e) {
-            const videoBase64 = document.getElementById('video_previa_base64').value;
-            const imagemBase64 = document.getElementById('imagem_base64').value;
+            const videoUrl = document.getElementById('video_url').value;
+            const imagemUrl = document.getElementById('imagem_url').value;
             
-            if (!videoBase64 || !imagemBase64) {
+            if (!videoUrl || !imagemUrl) {
                 e.preventDefault();
-                alert('Por favor, selecione a prévia do vídeo e a imagem de destaque.');
+                alert('Por favor, aguarde o upload dos arquivos terminar antes de enviar o formulário.');
                 return false;
             }
             
             document.getElementById('btnSubmit').disabled = true;
-            document.getElementById('btnSubmit').textContent = '📤 Enviando para Vercel Blob...';
+            document.getElementById('btnSubmit').textContent = '💾 Salvando informações...';
         });
     </script>
 </body>
