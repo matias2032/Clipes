@@ -1,4 +1,5 @@
-{ 
+{
+  "version": 2,
   "functions": {
     "api/*.php": {
       "runtime": "vercel-php@0.7.1"
@@ -11,5 +12,11 @@
     { "src": "/uploads/(.*)", "dest": "/uploads/$1" },
     { "src": "/", "dest": "/api/index.php" },
     { "src": "/(.*)", "dest": "/api/$1" }
-  ]
+  ],
+  "env": {
+    "PHP_INI_UPLOAD_MAX_FILESIZE": "100M",
+    "PHP_INI_POST_MAX_SIZE": "100M",
+    "PHP_INI_MEMORY_LIMIT": "512M",
+    "PHP_INI_MAX_EXECUTION_TIME": "300"
+  }
 }
