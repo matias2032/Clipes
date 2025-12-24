@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 include "verifica_login.php";
 include "conexao.php";
 include "info_usuario.php";
-include "cloudinary_upload.php"; 
+include "vercel_blob_upload.php"; // ← MUDANÇA: usar Vercel Blob em vez de Cloudinary
 
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Pragma: no-cache");
@@ -59,16 +59,45 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $conexao->begin_transaction();
         
         try {
-            // Verificar credenciais Cloudinary
-            if (!getenv('CLOUDINARY_CLOUD_NAME') || !getenv('CLOUDINARY_API_KEY') || !getenv('CLOUDINARY_API_SECRET')) {
-                throw new Exception("Credenciais do Cloudinary não configuradas. Verifique as variáveis de ambiente.");
+            // Verificar configuração do Vercel Blob
+            if (!isVercelBlobConfigured()) {
+                throw new Exception("Vercel Blob não configurado. Adicione BLOB_READ_WRITE_TOKEN nas variáveis de ambiente.");
             }
             
-            // Upload da prévia para Cloudinary
-            $caminho_previa = uploadToCloudinaryBase64($previa_base64, 'videos/previas', 'video');
+            // Detectar tipos MIME
+            $videoMimeType = detectMimeTypeFromBase64($previa_base64);
+            $imageMimeType = detectMimeTypeFromBase64($imagem_base64);
             
-            // Upload da imagem para Cloudinary
-            $caminho_imagem = uploadToCloudinaryBase64($imagem_base64, 'videos/imagens', 'image');
+            // Validar tipos de arquivo
+            if (!isValidVideo($videoMimeType)) {
+                throw new Exception("Formato de vídeo não permitido. Use MP4, WebM ou OGG.");
+            }
+            
+            if (!isValidImage($imageMimeType)) {
+                throw new Exception("Formato de imagem não permitido. Use JPG, PNG ou WebP.");
+            }
+            
+            // Validar tamanhos
+            $videoSize = getBase64FileSize($previa_base64);
+            $imageSize = getBase64FileSize($imagem_base64);
+            
+            if ($videoSize > 100 * 1024 * 1024) { // 100MB
+                throw new Exception("Vídeo muito grande. Máximo: 100MB (atual: " . formatFileSize($videoSize) . ")");
+            }
+            
+            if ($imageSize > 5 * 1024 * 1024) { // 5MB
+                throw new Exception("Imagem muito grande. Máximo: 5MB (atual: " . formatFileSize($imageSize) . ")");
+            }
+            
+            // Gerar nomes de arquivo únicos
+            $videoFilename = generateSafeFilename('preview.mp4', 'video');
+            $imageFilename = generateSafeFilename('thumbnail.jpg', 'image');
+            
+            // Upload da prévia para Vercel Blob
+            $caminho_previa = uploadToVercelBlobBase64($previa_base64, $videoFilename, $videoMimeType);
+            
+            // Upload da imagem para Vercel Blob
+            $caminho_imagem = uploadToVercelBlobBase64($imagem_base64, $imageFilename, $imageMimeType);
             
             // Inserir vídeo
             $sql_video = "INSERT INTO video (nome_video, descricao, preco, duracao, caminho_previa, id_usuario) 
@@ -92,7 +121,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             
             $conexao->commit();
             
-            $mensagem = "✅ Vídeo cadastrado com sucesso!";
+            $mensagem = "✅ Vídeo cadastrado com sucesso no Vercel Blob!";
             $tipo_mensagem = "success";
             $redirecionar = true;
             
@@ -142,6 +171,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             padding: 10px;
             background: #e8f5e9;
             border-radius: 5px;
+        }
+        .file-info {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
         }
     </style>
 </head>
@@ -232,6 +266,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             Ou Clique para Escolher
                         </button>
                         <p class="file-name" id="fileNamePrevia"></p>
+                        <p class="file-info" id="fileInfoPrevia"></p>
                         <div class="preview-container" id="previewPrevia"></div>
                         <div class="upload-progress" id="progressPrevia"></div>
                     </div>
@@ -246,6 +281,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             Ou Clique para Escolher
                         </button>
                         <p class="file-name" id="fileNameImagem"></p>
+                        <p class="file-info" id="fileInfoImagem"></p>
                         <div class="preview-container" id="previewImagem"></div>
                         <div class="upload-progress" id="progressImagem"></div>
                     </div>
@@ -264,15 +300,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <script>
         // Drag and Drop para Prévia
-        setupDropZone('dropZonePrevia', 'video_previa', 'fileNamePrevia', 'previewPrevia', 'video', 'video_previa_base64', 'progressPrevia');
+        setupDropZone('dropZonePrevia', 'video_previa', 'fileNamePrevia', 'fileInfoPrevia', 'previewPrevia', 'video', 'video_previa_base64', 'progressPrevia');
         
         // Drag and Drop para Imagem
-        setupDropZone('dropZoneImagem', 'imagem_destaque', 'fileNameImagem', 'previewImagem', 'image', 'imagem_base64', 'progressImagem');
+        setupDropZone('dropZoneImagem', 'imagem_destaque', 'fileNameImagem', 'fileInfoImagem', 'previewImagem', 'image', 'imagem_base64', 'progressImagem');
 
-        function setupDropZone(dropZoneId, inputId, fileNameId, previewId, type, hiddenInputId, progressId) {
+        function setupDropZone(dropZoneId, inputId, fileNameId, fileInfoId, previewId, type, hiddenInputId, progressId) {
             const dropZone = document.getElementById(dropZoneId);
             const fileInput = document.getElementById(inputId);
             const fileNameDisplay = document.getElementById(fileNameId);
+            const fileInfoDisplay = document.getElementById(fileInfoId);
             const previewContainer = document.getElementById(previewId);
             const hiddenInput = document.getElementById(hiddenInputId);
             const progressDiv = document.getElementById(progressId);
@@ -293,19 +330,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 const files = e.dataTransfer.files;
                 if (files.length > 0) {
                     fileInput.files = files;
-                    handleFile(files[0], fileNameDisplay, previewContainer, type, hiddenInput, progressDiv);
+                    handleFile(files[0], fileNameDisplay, fileInfoDisplay, previewContainer, type, hiddenInput, progressDiv);
                 }
             });
 
             fileInput.addEventListener('change', () => {
                 if (fileInput.files.length > 0) {
-                    handleFile(fileInput.files[0], fileNameDisplay, previewContainer, type, hiddenInput, progressDiv);
+                    handleFile(fileInput.files[0], fileNameDisplay, fileInfoDisplay, previewContainer, type, hiddenInput, progressDiv);
                 }
             });
         }
 
-        function handleFile(file, nameDisplay, previewContainer, type, hiddenInput, progressDiv) {
-            nameDisplay.textContent = `Arquivo: ${file.name}`;
+        function handleFile(file, nameDisplay, infoDisplay, previewContainer, type, hiddenInput, progressDiv) {
+            nameDisplay.textContent = `📁 ${file.name}`;
+            infoDisplay.textContent = `Tamanho: ${formatFileSize(file.size)} | Tipo: ${file.type}`;
             progressDiv.style.display = 'block';
             progressDiv.textContent = 'Processando arquivo...';
             
@@ -330,7 +368,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     previewContainer.appendChild(img);
                 }
                 
-                progressDiv.textContent = '✅ Arquivo pronto para envio';
+                progressDiv.textContent = '✅ Arquivo pronto para envio ao Vercel Blob';
                 setTimeout(() => { progressDiv.style.display = 'none'; }, 2000);
             };
             
@@ -340,6 +378,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             };
             
             reader.readAsDataURL(file);
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
         }
 
         // Validação do formulário
@@ -354,7 +400,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
             
             document.getElementById('btnSubmit').disabled = true;
-            document.getElementById('btnSubmit').textContent = 'Enviando...';
+            document.getElementById('btnSubmit').textContent = '📤 Enviando para Vercel Blob...';
         });
     </script>
 </body>
