@@ -1,5 +1,5 @@
 <?php
-// gerenciar_videos.php
+// gerenciar_videos.php - VERSÃO CORRIGIDA
 include "verifica_login.php";
 include "conexao.php";
 include "info_usuario.php";
@@ -15,7 +15,6 @@ if (!isset($_SESSION['usuario'])) {
 $usuario = $_SESSION['usuario'];
 $id_perfil = $usuario['idperfil'] ?? null;
 
-// Apenas Admin pode acessar esta página
 if ($id_perfil != 1) {
     header("Location:login.php");
     exit;
@@ -27,7 +26,7 @@ $categorias = $conexao->query("SELECT id_categoria, nome_categoria FROM categori
 $filtros = [];
 $tipos_bind = "";
 
-// Consulta base
+// Consulta base - CORRIGIDA para pegar imagem correta
 $sql_base = "FROM video v
 LEFT JOIN video_imagem vi ON v.id_video = vi.id_video AND vi.imagem_principal = 1
 LEFT JOIN usuario u ON v.id_usuario = u.id_usuario
@@ -54,7 +53,7 @@ if (isset($_GET['ativo']) && $_GET['ativo'] !== '') {
     $filtros[] = intval($_GET['ativo']);
 }
 
-// Paginação (ALTERADO PARA 9 POR PÁGINA: 3 colunas x 3 linhas)
+// Paginação
 $limite = 9; 
 $pagina_atual = isset($_GET['pagina']) ? (int)$_GET['pagina'] : 1;
 if ($pagina_atual < 1) $pagina_atual = 1;
@@ -71,7 +70,7 @@ $stmt_count->execute();
 $total_registros = $stmt_count->get_result()->fetch_assoc()['total'];
 $total_paginas = ceil($total_registros / $limite);
 
-// Consulta principal
+// Consulta principal - CORRIGIDA
 $sql = "SELECT v.*, vi.caminho_imagem, u.nome AS usuario_nome, u.apelido AS usuario_apelido
 " . $sql_base . " ORDER BY v.data_cadastro DESC LIMIT ? OFFSET ?";
 
@@ -113,7 +112,6 @@ if ($resD) {
 <script src="../js/dropdown2.js"></script>
 
 <style>
-    /* Estilos Gerais Mantidos */
     .filters { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
     .filters input, .filters select { padding: 10px; border: 1px solid #ddd; border-radius: 6px; }
     .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }
@@ -121,7 +119,6 @@ if ($resD) {
     .stat-card h3 { margin: 0 0 10px 0; font-size: 2em; }
     .stat-card p { margin: 0; opacity: 0.9; }
 
-    /* --- NOVO ESTILO DE GRID/CARDS --- */
     .toolbar {
         display: flex;
         justify-content: space-between;
@@ -135,12 +132,11 @@ if ($resD) {
 
     .video-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr); /* 3 Colunas Fixas conforme pedido */
+        grid-template-columns: repeat(3, 1fr);
         gap: 20px;
         margin-bottom: 30px;
     }
 
-    /* Responsividade para telas muito pequenas (opcional, mas recomendado) */
     @media (max-width: 900px) {
         .video-grid { grid-template-columns: repeat(2, 1fr); }
     }
@@ -164,21 +160,34 @@ if ($resD) {
         box-shadow: 0 8px 15px rgba(0,0,0,0.15);
     }
 
-    /* Área da Imagem */
     .card-image-wrapper {
         position: relative;
         width: 100%;
-        height: 180px; /* Altura fixa para alinhar */
+        height: 180px;
         background: #ecf0f1;
+        overflow: hidden;
     }
 
+    /* CORREÇÃO CRÍTICA: Garantir que a imagem seja exibida */
     .card-image-wrapper img {
         width: 100%;
         height: 100%;
         object-fit: cover;
+        display: block; /* Importante para remover espaço extra */
     }
 
-    /* Checkbox de seleção (Canto Superior Esquerdo) */
+    /* Fallback quando não há imagem */
+    .card-no-image {
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 3em;
+    }
+
     .card-select {
         position: absolute;
         top: 10px;
@@ -188,7 +197,6 @@ if ($resD) {
         cursor: pointer;
     }
 
-    /* Tag de Preço/Status (Canto Superior Direito) */
     .card-status-tag {
         position: absolute;
         top: 10px;
@@ -200,10 +208,9 @@ if ($resD) {
         font-size: 0.85em;
         box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
-    .tag-ativo { background: #e74c3c; /* Vermelho como na imagem "Preço" */ }
+    .tag-ativo { background: #e74c3c; }
     .tag-inativo { background: #7f8c8d; }
 
-    /* Duração (Canto Inferior Direito) */
     .card-duration {
         position: absolute;
         bottom: 10px;
@@ -218,7 +225,6 @@ if ($resD) {
         gap: 5px;
     }
 
-    /* Corpo do Card */
     .card-body {
         padding: 15px;
         flex-grow: 1;
@@ -261,7 +267,6 @@ if ($resD) {
     .dot-green { background-color: #27ae60; }
     .dot-red { background-color: #e74c3c; }
 
-    /* Botões de Ação (Rodapé) */
     .card-actions {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -287,19 +292,17 @@ if ($resD) {
     .action-edit:hover { background: #2980b9; }
 
     .action-toggle {
-        background: #27ae60; /* Verde padrão */
+        background: #27ae60;
         color: white;
     }
     .action-toggle.is-active {
-        background: #f39c12; /* Laranja para desativar */
+        background: #f39c12;
     }
     .action-toggle:hover { opacity: 0.9; }
 
-    /* Dark mode support basics if needed by JS */
     body.dark-mode .video-card { background: #2c3e50; border-color: #34495e; }
     body.dark-mode .card-title { color: #ecf0f1; }
     body.dark-mode .toolbar { background: #34495e; border-color: #2c3e50; }
-
 </style>
 </head>
 <body>
@@ -310,7 +313,7 @@ if ($resD) {
 <sidebar class="sidebar">
 <br><br>
 <a href="dashboard.php"> Voltar ao Início</a>
-    <a href="cadastrar_video.php"> Adicionar Vídeo</a>
+<a href="cadastrar_video.php"> Adicionar Vídeo</a>
   
   <div class="sidebar-user-wrapper">
     <div class="sidebar-user" id="usuarioDropdown">
@@ -390,7 +393,7 @@ if ($resD) {
         </div>
         <div>
              <span style="color: #7f8c8d; margin-right: 15px;"><?= $resultado->num_rows ?> de <?= $total_registros ?> vídeos</span>
-             <button type="submit" onclick="return confirm('Excluir vídeos selecionados?')" 
+             <button type="submit" onclick="return confirm('Excluir vídeos selecionados? Esta ação também removerá os arquivos do Vercel Blob.')" 
                 style="background: #e74c3c; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
                 🗑️ Excluir Selecionados
             </button>
@@ -404,19 +407,28 @@ if ($resD) {
                 <div class="card-image-wrapper">
                     <input type="checkbox" name="videos_ids[]" value="<?= $v['id_video'] ?>" class="card-select">
                     
-                    <?php if ($v['caminho_imagem'] && file_exists($v['caminho_imagem'])): ?>
-                        <img src="<?= $v['caminho_imagem'] ?>" alt="<?= htmlspecialchars($v['nome_video']) ?>">
+                    <?php 
+                    // CORREÇÃO: Verificar se a imagem existe e é uma URL válida do Vercel Blob
+                    $temImagem = !empty($v['caminho_imagem']) && filter_var($v['caminho_imagem'], FILTER_VALIDATE_URL);
+                    
+                    if ($temImagem): ?>
+                        <img src="<?= htmlspecialchars($v['caminho_imagem']) ?>" 
+                             alt="<?= htmlspecialchars($v['nome_video']) ?>"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div class="card-no-image" style="display: none;">📹</div>
                     <?php else: ?>
-                        <div style="width:100%; height:100%; background: #bdc3c7; display: flex; align-items: center; justify-content: center; color: white;">Sem Imagem</div>
+                        <div class="card-no-image">📹</div>
                     <?php endif; ?>
 
                     <span class="card-status-tag <?= $v['ativo'] ? 'tag-ativo' : 'tag-inativo' ?>">
                         <?= $v['ativo'] ? 'ATIVO' : 'INATIVO' ?>
                     </span>
 
+                    <?php if ($v['duracao']): ?>
                     <span class="card-duration">
-                        ⏱ <?= $v['duracao'] ?? '00:00' ?>
+                        ⏱ <?= $v['duracao'] ?>
                     </span>
+                    <?php endif; ?>
                 </div>
 
                 <div class="card-body">
@@ -468,9 +480,9 @@ if ($resD) {
                     </a>
                 </div>
             </div>
-            <?php endwhile; ?>
+        <?php endwhile; ?>
       </div>
-      </form>
+    </form>
 
     <div style="margin-top: 30px; text-align: center;">
       <?php for ($i = 1; $i <= $total_paginas; $i++): ?>
@@ -486,7 +498,6 @@ if ($resD) {
 </div>
 
 <script>
-// Select All checkbox
 document.getElementById('selectAll').addEventListener('change', function() {
   const checkboxes = document.querySelectorAll('input[name="videos_ids[]"]');
   checkboxes.forEach(cb => cb.checked = this.checked);

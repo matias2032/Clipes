@@ -1,8 +1,7 @@
 <?php
-// index.php
+// index.php - VERSÃO CORRIGIDA COM IMAGENS DO VERCEL BLOB
 include "verifica_login_opcional.php";
 include "conexao.php";
-
 
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Pragma: no-cache");
@@ -11,16 +10,15 @@ $usuarioLogado = $_SESSION['usuario'] ?? null;
 $id_perfil = $usuarioLogado['idperfil'] ?? null;
 $idUsuario = $usuarioLogado['id_usuario'] ?? null;
 
-// YOUR TELEGRAM CONTACT - CONFIGURE HERE
-$TELEGRAM_CONTACT = "https://t.me/peterparker1232"; // Change to your Telegram username
+$TELEGRAM_CONTACT = "https://t.me/peterparker1232";
 
-// Load categories for filter
+// Load categories
 $categorias = $conexao->query("SELECT id_categoria, nome_categoria FROM categoria ORDER BY nome_categoria");
 
 $filtros = [];
 $tipos_bind = "";
 
-// Base query
+// CORREÇÃO: Base query para pegar imagem principal
 $sql_base = "FROM video v
 LEFT JOIN video_imagem vi ON v.id_video = vi.id_video AND vi.imagem_principal = 1
 WHERE v.ativo = 1";
@@ -40,28 +38,24 @@ if (!empty($_GET['busca'])) {
     $filtros[] = $busca;
 }
 
-// Minimum duration filter
 if (!empty($_GET['duracao_min'])) {
     $sql_base .= " AND TIME_TO_SEC(v.duracao) >= ?";
     $tipos_bind .= "i";
     $filtros[] = intval($_GET['duracao_min']) * 60;
 }
 
-// Maximum duration filter
 if (!empty($_GET['duracao_max'])) {
     $sql_base .= " AND TIME_TO_SEC(v.duracao) <= ?";
     $tipos_bind .= "i";
     $filtros[] = intval($_GET['duracao_max']) * 60;
 }
 
-// Minimum price filter
 if (!empty($_GET['preco_min'])) {
     $sql_base .= " AND v.preco >= ?";
     $tipos_bind .= "d";
     $filtros[] = floatval($_GET['preco_min']);
 }
 
-// Maximum price filter
 if (!empty($_GET['preco_max'])) {
     $sql_base .= " AND v.preco <= ?";
     $tipos_bind .= "d";
@@ -74,7 +68,6 @@ $pagina_atual = isset($_GET['pagina']) ? (int)$_GET['pagina'] : 1;
 if ($pagina_atual < 1) $pagina_atual = 1;
 $offset = ($pagina_atual - 1) * $limite;
 
-// Count total
 $sql_count = "SELECT COUNT(*) AS total " . $sql_base;
 $stmt_count = $conexao->prepare($sql_count);
 if (!empty($filtros)) {
@@ -85,7 +78,7 @@ $stmt_count->execute();
 $total_registros = $stmt_count->get_result()->fetch_assoc()['total'];
 $total_paginas = ceil($total_registros / $limite);
 
-// Main query
+// Main query - CORRIGIDA para garantir caminho_imagem
 $sql = "SELECT v.*, vi.caminho_imagem
 " . $sql_base . " ORDER BY v.data_cadastro DESC LIMIT ? OFFSET ?";
 
@@ -161,14 +154,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_visualizaca
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Video Repository</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-
-
 <link rel="stylesheet" href="../css/basico.css">
 <script src="../js/dropdown.js"></script>
 <script src="../js/paginacao.js"></script>
 <script src="../js/darkmode1.js"></script>
 <script src="../js/sidebar2.js"></script>
 
+<style>
+/* Garantir que imagens sejam exibidas corretamente */
+.video-thumbnail {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* Fallback visual quando não há imagem */
+.video-thumbnail-fallback {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 3em;
+}
+</style>
 </head>
 <body>
 
@@ -193,13 +205,12 @@ $corAvatar = gerarCor($nomeCompleto);
 
 <header class="topbar">
     <div class="container">
-        
         <button class="menu-btn-mobile" id="menuBtnMobile">&#9776;</button>
 
         <div class="logo">
             <a href="index.php" style="text-decoration: none; display: flex; align-items: center; gap: 10px;">
                 <img src="../icones/logo.png" alt="Logo" class="logo-img" style="height: 40px;">
-                <span class="logo-text">Forbbiben Nest</span>
+                <span class="logo-text">Forbidden Nest</span>
             </a>
         </div>
 
@@ -259,14 +270,12 @@ $corAvatar = gerarCor($nomeCompleto);
 
 <!-- Main Container -->
 <div class="main-container">
-    <!-- Toggle Filters Button -->
     <button class="filter-toggle-btn" id="filterToggle">
         <i class="fas fa-filter"></i>
         <span>Show Filters</span>
         <i class="fas fa-chevron-down"></i>
     </button>
 
-    <!-- Filters -->
     <div class="filters" id="filtersContainer">
         <h2><i class="fas fa-filter"></i> Search Filters</h2>
         <form method="get">
@@ -326,20 +335,26 @@ $corAvatar = gerarCor($nomeCompleto);
         </form>
     </div>
 
-    <!-- Count -->
     <div class="count">
         <i class="fas fa-video"></i> <?= $resultado->num_rows ?> video(s) found
     </div>
 
-    <!-- Video Grid -->
     <div class="videos-grid">
         <?php while ($v = $resultado->fetch_assoc()): ?>
             <div class="video-card">
                 <div class="video-thumbnail-wrapper">
-                    <?php if ($v['caminho_imagem'] && file_exists($v['caminho_imagem'])): ?>
-                        <img src="<?= $v['caminho_imagem'] ?>" alt="Thumbnail" class="video-thumbnail">
+                    <?php 
+                    // CORREÇÃO: Verificar URL do Vercel Blob
+                    $temImagem = !empty($v['caminho_imagem']) && filter_var($v['caminho_imagem'], FILTER_VALIDATE_URL);
+                    
+                    if ($temImagem): ?>
+                        <img src="<?= htmlspecialchars($v['caminho_imagem']) ?>" 
+                             alt="<?= htmlspecialchars($v['nome_video']) ?>" 
+                             class="video-thumbnail"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div class="video-thumbnail-fallback" style="display: none;">📹</div>
                     <?php else: ?>
-                        <div class="video-thumbnail" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
+                        <div class="video-thumbnail-fallback">📹</div>
                     <?php endif; ?>
                     
                     <div class="price-badge">$<?= number_format($v['preco'], 2) ?></div>
@@ -379,7 +394,6 @@ $corAvatar = gerarCor($nomeCompleto);
         <?php endwhile; ?>
     </div>
 
-    <!-- Pagination -->
     <?php if ($total_paginas > 1): ?>
         <div class="pagination">
             <?php for ($i = 1; $i <= $total_paginas; $i++): 
@@ -395,7 +409,6 @@ $corAvatar = gerarCor($nomeCompleto);
     <?php endif; ?>
 </div>
 
-<!-- Preview Modal -->
 <div id="modalPreview" class="modal">
     <div class="modal-content">
         <span class="close-modal" onclick="fecharPreview()">&times;</span>
@@ -406,7 +419,6 @@ $corAvatar = gerarCor($nomeCompleto);
 </div>
 
 <script>
-// Toggle Filters
 const filterToggle = document.getElementById('filterToggle');
 const filtersContainer = document.getElementById('filtersContainer');
 
@@ -415,19 +427,11 @@ filterToggle.addEventListener('click', function() {
     filterToggle.classList.toggle('active');
     
     const span = filterToggle.querySelector('span');
-    if (filtersContainer.classList.contains('show')) {
-        span.textContent = 'Hide Filters';
-    } else {
-        span.textContent = 'Show Filters';
-    }
+    span.textContent = filtersContainer.classList.contains('show') ? 'Hide Filters' : 'Show Filters';
 });
 
-// Send Telegram Message with Video Info
 function sendTelegramMessage(videoId, videoName, price, duration) {
-    const currentUrl = window.location.href;
     const videoUrl = `${window.location.origin}${window.location.pathname}?video=${videoId}`;
-    
-    // Create message template
     const message = `Hello! I'm interested in purchasing this video:
 
 📹 Video Title: ${videoName}
@@ -437,24 +441,17 @@ function sendTelegramMessage(videoId, videoName, price, duration) {
 
 Please provide me with information on how to proceed with the purchase.`;
     
-    // Encode message for URL
     const encodedMessage = encodeURIComponent(message);
-    
-    // Telegram URL with pre-filled message
     const telegramUrl = `<?= $TELEGRAM_CONTACT ?>?text=${encodedMessage}`;
-    
-    // Open Telegram
     window.open(telegramUrl, '_blank');
 }
 
-// Preview Functions
 function abrirPreview(idVideo, caminho) {
     document.getElementById('modalPreview').style.display = 'block';
     document.getElementById('videoSource').src = caminho;
     document.getElementById('videoPreview').load();
     document.body.style.overflow = 'hidden';
     
-    // Register view
     const formData = new FormData();
     formData.append('registrar_visualizacao', '1');
     formData.append('id_video', idVideo);
@@ -472,7 +469,6 @@ function fecharPreview() {
     document.body.style.overflow = 'auto';
 }
 
-// Close on outside click
 window.onclick = function(event) {
     const modal = document.getElementById('modalPreview');
     if (event.target == modal) {
@@ -480,7 +476,6 @@ window.onclick = function(event) {
     }
 }
 
-// Close with ESC
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
         fecharPreview();
