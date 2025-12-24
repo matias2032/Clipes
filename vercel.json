@@ -34,8 +34,8 @@
       "methods": ["GET", "POST", "OPTIONS"]
     },
     {
-      "src": "/api/cloudinary_upload.php",
-      "dest": "/api/cloudinary_upload.php",
+      "src": "/api/vercel_blob_upload.php",
+      "dest": "/api/vercel_blob_upload.php",
       "methods": ["GET", "POST", "OPTIONS"]
     },
     {
