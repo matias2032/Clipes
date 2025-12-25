@@ -23,6 +23,7 @@
       "src": "/uploads/(.*)",
       "dest": "/uploads/$1"
     },
+    
     {
       "src": "/api/get_upload_url.php",
       "dest": "/api/get_upload_url.php",
@@ -58,3 +59,4 @@
     "PHP_INI_MAX_EXECUTION_TIME": "60"
   }
 }
+
