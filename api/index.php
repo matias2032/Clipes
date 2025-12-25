@@ -10,7 +10,7 @@ $usuarioLogado = $_SESSION['usuario'] ?? null;
 $id_perfil = $usuarioLogado['idperfil'] ?? null;
 $idUsuario = $usuarioLogado['id_usuario'] ?? null;
 
-$TELEGRAM_CONTACT = "https://t.me/peterparker1232";
+$TELEGRAM_CONTACT = "https://t.me/Xplaycorner";
 
 // Load categories
 $categorias = $conexao->query("SELECT id_categoria, nome_categoria FROM categoria ORDER BY nome_categoria");
@@ -484,4 +484,5 @@ document.addEventListener('keydown', function(event) {
 </script>
 
 </body>
+
 </html>
